@@ -1,0 +1,214 @@
+﻿Activity Resolver Table:
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        a60c3c2 com.example.p2p_delivery_mobile/.MainActivity filter e4a5d3
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+
+Receiver Resolver Table:
+  Non-Data Actions:
+      androidx.profileinstaller.action.SAVE_PROFILE:
+        131510 com.example.p2p_delivery_mobile/androidx.profileinstaller.ProfileInstallReceiver filter c9cc2f
+          Action: "androidx.profileinstaller.action.SAVE_PROFILE"
+      androidx.profileinstaller.action.INSTALL_PROFILE:
+        131510 com.example.p2p_delivery_mobile/androidx.profileinstaller.ProfileInstallReceiver filter 2eb0809
+          Action: "androidx.profileinstaller.action.INSTALL_PROFILE"
+      androidx.profileinstaller.action.SKIP_FILE:
+        131510 com.example.p2p_delivery_mobile/androidx.profileinstaller.ProfileInstallReceiver filter a7b5a0e
+          Action: "androidx.profileinstaller.action.SKIP_FILE"
+      androidx.profileinstaller.action.BENCHMARK_OPERATION:
+        131510 com.example.p2p_delivery_mobile/androidx.profileinstaller.ProfileInstallReceiver filter d7c723c
+          Action: "androidx.profileinstaller.action.BENCHMARK_OPERATION"
+
+Domain verification status:
+
+Permissions:
+  Permission [com.example.p2p_delivery_mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (63a55e0):
+    sourcePackage=com.example.p2p_delivery_mobile
+    uid=10233 gids=[] type=0 prot=signature
+    perm=PermissionInfo{8410099 com.example.p2p_delivery_mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}
+
+Registered ContentProviders:
+  com.example.p2p_delivery_mobile/androidx.startup.InitializationProvider:
+    Provider{1320f5e com.example.p2p_delivery_mobile/androidx.startup.InitializationProvider}
+
+ContentProvider Authorities:
+  [com.example.p2p_delivery_mobile.androidx-startup]:
+    Provider{1320f5e com.example.p2p_delivery_mobile/androidx.startup.InitializationProvider}
+      applicationInfo=ApplicationInfo{3b35f3f com.example.p2p_delivery_mobile}
+
+Key Set Manager:
+  [com.example.p2p_delivery_mobile]
+      Signing KeySets: 238
+
+Packages:
+  Package [com.example.p2p_delivery_mobile] (41ef00c):
+    userId=10233
+    pkg=Package{3980d55 com.example.p2p_delivery_mobile}
+    codePath=/data/app/~~cHK9Uy-gfV2ZtC5mYyAwSw==/com.example.p2p_delivery_mobile-TRuDGaR-CBuocoFp2A5Q3Q==
+    resourcePath=/data/app/~~cHK9Uy-gfV2ZtC5mYyAwSw==/com.example.p2p_delivery_mobile-TRuDGaR-CBuocoFp2A5Q3Q==
+    legacyNativeLibraryDir=/data/app/~~cHK9Uy-gfV2ZtC5mYyAwSw==/com.example.p2p_delivery_mobile-TRuDGaR-CBuocoFp2A5Q3Q==/lib
+    extractNativeLibs=false
+    primaryCpuAbi=arm64-v8a
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=2 minSdk=24 targetSdk=36
+    minExtensionVersions=[]
+    versionName=0.1.1
+    usesNonSdkApi=false
+    splits=[base]
+    apkSigningVersion=2
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    queriesIntents=[Intent { act=android.intent.action.PROCESS_TEXT dat=content://*/... typ=text/plain }]
+    dataDir=/data/user/0/com.example.p2p_delivery_mobile
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    usesOptionalLibraries:
+      androidx.window.extensions
+      androidx.window.sidecar
+    timeStamp=2026-02-15 03:23:25
+    lastUpdateTime=2026-02-15 03:23:28
+    packageSource=0
+    signatures=PackageSignatures{9360929 version:2, signatures:[fc72df5d], past signatures:[]}
+    installPermissionsFixed=true
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    declared permissions:
+      com.example.p2p_delivery_mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature, INSTALLED
+    requested permissions:
+      android.permission.INTERNET
+      com.example.p2p_delivery_mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+    install permissions:
+      android.permission.INTERNET: granted=true
+      com.example.p2p_delivery_mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true
+    User 0: ceDataInode=561626 installed=true hidden=false suspended=false distractionFlags=0 stopped=false notLaunched=false enabled=0 instant=false virtual=false
+      installReason=0
+      firstInstallTime=2026-02-15 00:49:25
+      uninstallReason=0
+      overlay paths:
+        /product/overlay/NavigationBarMode3Button/NavigationBarMode3ButtonOverlay.apk
+        /data/resource-cache/com.android.systemui-neutral-aZ20.frro
+        /product/overlay/IconDefaultShape.apk
+        /data/resource-cache/com.android.systemui-accent-W0o9.frro
+      legacy overlay paths:
+        /product/overlay/NavigationBarMode3Button/NavigationBarMode3ButtonOverlay.apk
+        /product/overlay/IconDefaultShape.apk
+      gids=[3003]
+      runtime permissions:
+    User 999: ceDataInode=0 installed=false hidden=false suspended=false distractionFlags=0 stopped=true notLaunched=true enabled=0 instant=false virtual=false
+      installReason=0
+      firstInstallTime=2026-02-15 00:49:25
+      uninstallReason=0
+      overlay paths:
+        /product/overlay/NavigationBarMode3Button/NavigationBarMode3ButtonOverlay.apk
+        /data/resource-cache/com.android.systemui-neutral-aZ20.frro
+        /product/overlay/IconDefaultShape.apk
+        /data/resource-cache/com.android.systemui-accent-W0o9.frro
+      legacy overlay paths:
+        /product/overlay/NavigationBarMode3Button/NavigationBarMode3ButtonOverlay.apk
+        /product/overlay/IconDefaultShape.apk
+      gids=[3003]
+      runtime permissions:
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  queries via package name:
+  queries via component:
+    [com.transsion.ossettingsext,com.transsion.overlaysuw,com.transsion.multiwindow,com.transsion,com.transsion.iotservice,com.xui.xhide,com.transsion.thub.res,com.transsion.statisticalsales,com.trustonic.teeservice,com.transsion.letswitch,com.transsion.systemupdate,com.mediatek.batterywarning,com.transsion.childmode,com.skyroam.silverhelper,android,com.transsion.zahooc,com.transsion.uxdetector,com.reallytek.wg,com.transsion.microintelligence,com.transsion.tranengine,com.transsion.videocallenhancer,com.transsion.phonemanager,com.mediatek.simprocessor,com.transsion.agingfunction,com.android.localtransport,com.android.providers.settings,com.transsion.mol,com.android.wallpaperbackup,com.mediatek.schpwronoff,com.android.settings,com.android.dynsystem,com.transsion.hamal,com.transsion.screencapture,com.android.inputdevices,com.mediatek.omacp,com.transsion.guideservice,com.transsion.deskclock,com.android.location.fused,com.mediatek.voicecommand,com.mediatek.location.lppe.main,com.android.keychain,com.android.server.telecom,com.transsion.smartpanel,com.transsion.tabe,com.mediatek,com.transsion.faceid,com.transsion.kolun.aiservice,com.transsion.repaircard,com.transsion.batterylab]:
+      com.example.p2p_delivery_mobile
+    com.transsion.dualapp:
+      com.example.p2p_delivery_mobile
+    com.transsion.applock:
+      com.example.p2p_delivery_mobile
+    com.sh.smart.caller:
+      com.example.p2p_delivery_mobile
+    com.transsion.trancare:
+      com.example.p2p_delivery_mobile
+    com.transsion.quicktools:
+      com.example.p2p_delivery_mobile
+    com.android.systemui:
+      com.example.p2p_delivery_mobile
+    com.transsion.magazineservice.hios:
+      com.example.p2p_delivery_mobile
+    com.transsion.hilauncher:
+      com.example.p2p_delivery_mobile
+    com.transsion.kolun.assistant:
+      com.example.p2p_delivery_mobile
+    com.transsion.scanningrecharger:
+      com.example.p2p_delivery_mobile
+    com.transsion.phonemaster:
+      com.example.p2p_delivery_mobile
+    com.transsion.dynamicbar:
+      com.example.p2p_delivery_mobile
+    com.transsion.sk:
+      com.example.p2p_delivery_mobile
+    com.transsnet.store:
+      com.example.p2p_delivery_mobile
+    com.transsion.carlcare:
+      com.example.p2p_delivery_mobile
+    us.zoom.videomeetings:
+      com.example.p2p_delivery_mobile
+    com.esim.numero:
+      com.example.p2p_delivery_mobile
+    com.transsion.calculator:
+      com.example.p2p_delivery_mobile
+    com.transsion.notebook:
+      com.example.p2p_delivery_mobile
+    com.transsion.soundrecorder:
+      com.example.p2p_delivery_mobile
+    com.rlk.weathers:
+      com.example.p2p_delivery_mobile
+    com.facebook.katana:
+      com.example.p2p_delivery_mobile
+    com.wakasoftware.appfreezer:
+      com.example.p2p_delivery_mobile
+    com.transsion.tecnospot:
+      com.example.p2p_delivery_mobile
+    com.example.p2p_delivery_mobile:
+      com.google.android.googlequicksearchbox
+      com.transsion.notebook
+      com.anthropic.claude
+    com.whatsapp:
+      com.example.p2p_delivery_mobile
+    com.whatsapp.w4b:
+      com.example.p2p_delivery_mobile
+    com.facebook.orca:
+      com.example.p2p_delivery_mobile
+    com.instagram.android:
+      com.example.p2p_delivery_mobile
+    com.opera.app.news:
+      com.example.p2p_delivery_mobile
+    com.statussaver.statusdownloader.lite:
+      com.example.p2p_delivery_mobile
+    com.lemon.lvoverseas:
+      com.example.p2p_delivery_mobile
+    com.transsion.oraimostore:
+      com.example.p2p_delivery_mobile
+  queryable via interaction:
+    User 0:
+    User 999:
+  queryable via uses-library:
+
+Dexopt state:
+  [com.example.p2p_delivery_mobile]
+    path: /data/app/~~cHK9Uy-gfV2ZtC5mYyAwSw==/com.example.p2p_delivery_mobile-TRuDGaR-CBuocoFp2A5Q3Q==/base.apk
+      arm64: [status=verify] [reason=install]
+  BgDexopt state:
+    enabled:true
+    mDexOptThread:null
+    mDexOptCancellingThread:null
+    mFinishedPostBootUpdate:true
+    mLastExecutionStatus:5
+    mLastExecutionStartTimeMs:13517703
+    mLastExecutionDurationIncludingSleepMs:53114
+    mLastExecutionStartUptimeMs:12911079
+    mLastExecutionDurationMs:53113
+    now:70006087
+    mLastCancelledPackages:
+    mFailedPackageNamesPrimary:com.transsion.trproduct.overlaysuw.resoverlay
+    mFailedPackageNamesSecondary:
+
+Compiler stats:
+  [com.example.p2p_delivery_mobile]
+     base.apk - 1224
