@@ -1,0 +1,72 @@
+name: 🔁 Rollback — Production
+
+# Déclenché manuellement depuis l'onglet Actions de GitHub
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag de l'image Docker à restaurer (ex: sha-a1b2c3d)"
+        required: true
+        type: string
+      reason:
+        description: "Raison du rollback"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
+
+jobs:
+  rollback:
+    name: 🔁 Rollback vers ${{ inputs.image_tag }}
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://api.elysian-flee.com
+
+    steps:
+      - name: 📋 Log rollback intention
+        run: |
+          echo "## 🔁 Rollback demandé" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag cible**: \`${{ inputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Raison**: ${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Déclenché par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔑 Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: 🌐 Known hosts
+        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🔁 Rollback sur le serveur
+        env:
+          TARGET_TAG: ${{ inputs.image_tag }}
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
+            set -e
+            cd /app/elysian-flee
+
+            TARGET_IMAGE="$REGISTRY/$IMAGE_NAME:$TARGET_TAG"
+            echo "🔄 Pull image de rollback: \$TARGET_IMAGE"
+            docker pull \$TARGET_IMAGE
+
+            echo "🔁 Redémarrage avec l'image rollback..."
+            API_IMAGE=\$TARGET_IMAGE docker compose up -d --no-deps api
+
+            sleep 20
+            curl -sf http://localhost:8081/healthz || (echo "❌ Rollback health check FAILED" && exit 1)
+            echo "✅ Rollback OK — image: \$TARGET_IMAGE"
+          ENDSSH
+
+      - name: ✅ Vérification post-rollback
+        run: |
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            https://api.elysian-flee.com/healthz || echo "000")
+          echo "Health check HTTP: $HTTP_CODE"
+          [ "$HTTP_CODE" = "200" ] || exit 1
