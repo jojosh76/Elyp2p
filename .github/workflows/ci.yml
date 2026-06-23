@@ -1,37 +1,364 @@
-name: CI
+name: CI/CD — Elysian Flee
 
 on:
   push:
     branches: ["**"]
   pull_request:
 
+# ─── Variables globales ────────────────────────────────────────────────────────
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOB 1 — Tests backend Go
+# ══════════════════════════════════════════════════════════════════════════════
 jobs:
   backend:
+    name: 🔧 Backend — Test & Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
+    services:
+      # PostgreSQL réel pour les tests d'intégration
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: p2p_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p2p_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: ⬇️  Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
-      - name: Test backend
-        run: go test ./...
+          cache: true
 
+      - name: 📦 Download dependencies
+        run: go mod download
+
+      - name: 🔍 Vet
+        run: go vet ./...
+
+      - name: 🧪 Unit tests (MemoryStore)
+        run: go test ./... -v -count=1 -race -timeout 60s
+        env:
+          ALLOW_INSECURE_DEV: "true"
+          OTP_DEV_MODE: "true"
+          JWT_SECRET: "ci-test-secret-not-for-production"
+
+      - name: 🗄️  Integration tests (PostgreSQL)
+        run: go test ./... -v -count=1 -timeout 120s -tags integration
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/p2p_test?sslmode=disable
+          ALLOW_INSECURE_DEV: "true"
+          OTP_DEV_MODE: "true"
+          JWT_SECRET: "ci-test-secret-not-for-production"
+
+      - name: 🏗️  Build binaire
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+          go build -ldflags="-s -w -X main.Version=${{ github.sha }}" \
+          -o /tmp/api ./cmd/api
+          echo "✅ Build OK — $(du -sh /tmp/api | cut -f1)"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 2 — Lint & Tests Flutter
+  # ══════════════════════════════════════════════════════════════════════════════
   mobile:
+    name: 📱 Mobile — Analyze & Test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mobile
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: ⬇️  Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Flutter pub get
+          cache: true
+
+      - name: 📦 Flutter pub get
         run: flutter pub get
-      - name: Flutter analyze
-        run: flutter analyze
-      - name: Flutter test
-        run: flutter test
+
+      - name: 🔍 Flutter analyze
+        run: flutter analyze --fatal-infos
+
+      - name: 🧪 Flutter test
+        run: flutter test --coverage
+
+      - name: 📊 Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: mobile/coverage/lcov.info
+          flags: flutter
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 3 — Docker Build & Push sur GHCR (uniquement sur main/master)
+  # ══════════════════════════════════════════════════════════════════════════════
+  docker:
+    name: 🐳 Docker — Build & Push
+    runs-on: ubuntu-latest
+    needs: [backend, mobile]   # attend que les tests passent
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    permissions:
+      contents: read
+      packages: write   # nécessaire pour pusher sur ghcr.io
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - name: ⬇️  Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️  Docker metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag avec le SHA court du commit
+            type=sha,prefix=sha-,format=short
+            # Tag 'latest' sur main/master
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+            # Tag avec la date (YYYYMMDD)
+            type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
+
+      - name: 🏗️  Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build & Push image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          dockerfile: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ github.sha }}
+
+      - name: 📋 Image summary
+        run: |
+          echo "### 🐳 Docker Image Pushed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest**: ${{ steps.push.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 4 — Build APK Flutter (release)
+  # ══════════════════════════════════════════════════════════════════════════════
+  apk:
+    name: 📦 APK — Flutter Release Build
+    runs-on: ubuntu-latest
+    needs: [backend, mobile]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: ⬇️  Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: ☕ Setup Java (pour Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 🔑 Decode keystore (depuis secret base64)
+        # Le keystore est stocké en base64 dans le secret KEYSTORE_BASE64
+        # Pour créer le secret: base64 -i my-release-key.jks | pbcopy
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > mobile/android/app/release-keystore.jks
+            echo "✅ Keystore decoded"
+          else
+            echo "⚠️  No keystore — building unsigned APK"
+          fi
+
+      - name: 📝 Créer key.properties (si keystore disponible)
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEY_ALIAS" ]; then
+            cat > mobile/android/key.properties << EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=release-keystore.jks
+          EOF
+            echo "✅ key.properties created"
+          fi
+
+      - name: 📦 Flutter pub get
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: 🔨 Build APK release
+        working-directory: mobile
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=${API_BASE_URL:-https://api.elysian-flee.com}
+          echo "✅ APK built"
+          ls -lh build/app/outputs/flutter-apk/
+
+      - name: 📤 Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: elysian-flee-${{ github.sha }}.apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: 📋 APK summary
+        run: |
+          APK_SIZE=$(du -sh mobile/build/app/outputs/flutter-apk/app-release.apk | cut -f1)
+          echo "### 📦 APK Built" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Download**: voir Artifacts ci-dessus" >> $GITHUB_STEP_SUMMARY
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 5 — Déploiement sur le serveur (SSH + Docker Compose)
+  # ══════════════════════════════════════════════════════════════════════════════
+  deploy:
+    name: 🚀 Deploy — Production Server
+    runs-on: ubuntu-latest
+    needs: [docker, apk]   # attend image Docker et APK
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    environment:
+      name: production
+      url: https://api.elysian-flee.com
+
+    steps:
+      - name: ⬇️  Checkout (pour récupérer docker-compose)
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: 🌐 Ajouter le serveur aux known_hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 📋 Vérifier que le serveur est joignable
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH OK'"
+
+      - name: 📤 Copier docker-compose sur le serveur
+        run: |
+          scp deploy/docker-compose.external-test.yml \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/app/elysian-flee/docker-compose.yml
+
+      - name: 🔑 Login Docker registry sur le serveur
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "echo ${{ secrets.GITHUB_TOKEN }} | \
+             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+
+      - name: 🚀 Déployer la nouvelle image
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+            set -e
+            cd /app/elysian-flee
+
+            echo "🔄 Pulling nouvelle image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+            echo "🔄 Redémarrage du service API (zero-downtime)..."
+            docker compose up -d --no-deps --pull always api
+
+            echo "⏳ Attente du démarrage (30s)..."
+            sleep 30
+
+            echo "🏥 Health check..."
+            curl -sf http://localhost:8081/healthz || (echo "❌ Health check FAILED" && exit 1)
+
+            echo "🧹 Nettoyage des vieilles images..."
+            docker image prune -f
+
+            echo "✅ Déploiement terminé avec succès"
+          ENDSSH
+
+      - name: ✅ Vérification post-déploiement
+        run: |
+          sleep 10
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            https://api.elysian-flee.com/healthz || echo "000")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Production health check OK (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Production health check FAILED (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: 📋 Résumé du déploiement
+        if: always()
+        run: |
+          echo "### 🚀 Déploiement Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Serveur**: \`${{ secrets.DEPLOY_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Heure**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Déclenché par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔔 Notification Slack en cas d'échec
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ *Déploiement ÉCHOUÉ* — Elysian Flee\n*Commit*: `${{ github.sha }}`\n*Auteur*: @${{ github.actor }}\n*Lien*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true   # Ne bloque pas si Slack non configuré
