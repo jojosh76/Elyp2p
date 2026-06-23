@@ -104,7 +104,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               icon: Badge(
                 isLabelVisible: _unreadNotifications > 0,
                 label: Text('$_unreadNotifications'),
-                child: Icon(Icons.notifications),
+                child: const Icon(Icons.notifications),
               ),
               label: 'Alerts'),
           const NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'More'),

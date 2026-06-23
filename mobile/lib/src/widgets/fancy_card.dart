@@ -16,19 +16,19 @@ class FancyCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white, Colors.white.withOpacity(0.98)],
+          colors: [Colors.white, Colors.white.withValues(alpha: 0.98)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             blurRadius: 0,
             offset: const Offset(-1, -1),
           ),

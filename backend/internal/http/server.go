@@ -23,12 +23,13 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 	"p2p-delivery/backend/internal/auth"
 	"p2p-delivery/backend/internal/domain"
 	"p2p-delivery/backend/internal/payments"
 	"p2p-delivery/backend/internal/store"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type contextKey string
@@ -57,6 +58,8 @@ type Server struct {
 	attemptsMu      sync.Mutex
 	loginAttempts   map[string]authAttempt
 	otpAttempts     map[string]authAttempt
+	revokedTokensMu sync.Mutex
+	revokedTokens   map[string]time.Time
 	paymentProvider payments.Provider
 	mux             *http.ServeMux
 }
@@ -125,6 +128,7 @@ func NewServer(
 	if s.uploadDir == "" {
 		s.uploadDir = filepath.Join("data", "uploads")
 	}
+	s.revokedTokens = map[string]time.Time{}
 	s.routes()
 	return s
 }
@@ -146,6 +150,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/auth/register", s.register)
 	s.mux.HandleFunc("POST /v1/auth/login", s.login)
 	s.mux.HandleFunc("POST /v1/auth/social", s.socialLogin)
+	s.mux.Handle("POST /v1/auth/logout", s.authRequired(s.logout, roleAny...))
 	s.mux.HandleFunc("POST /v1/auth/otp/verify", s.verifyOTPLogin)
 	s.mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
 
@@ -205,6 +210,47 @@ var (
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, "Bearer ") {
+		writeErr(w, http.StatusUnauthorized, "missing bearer token")
+		return
+	}
+	token := strings.TrimPrefix(header, "Bearer ")
+	claims, err := s.authManager.Parse(token)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if err := s.revokeToken(token, claims.ExpiresAt.Time); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to revoke token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
+}
+
+func (s *Server) revokeToken(token string, expiry time.Time) error {
+	s.revokedTokensMu.Lock()
+	defer s.revokedTokensMu.Unlock()
+	if expiry.Before(time.Now().UTC()) {
+		return nil
+	}
+	s.revokedTokens[token] = expiry
+	return nil
+}
+
+func (s *Server) isTokenRevoked(token string) bool {
+	s.revokedTokensMu.Lock()
+	defer s.revokedTokensMu.Unlock()
+	if expiry, ok := s.revokedTokens[token]; ok {
+		if expiry.After(time.Now().UTC()) {
+			return true
+		}
+		delete(s.revokedTokens, token)
+	}
+	return false
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
@@ -1718,6 +1764,10 @@ func (s *Server) authRequired(next http.HandlerFunc, roles ...string) http.Handl
 			return
 		}
 		token := strings.TrimPrefix(header, "Bearer ")
+		if s.isTokenRevoked(token) {
+			writeErr(w, http.StatusUnauthorized, "token revoked")
+			return
+		}
 		claims, err := s.authManager.Parse(token)
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "invalid token")

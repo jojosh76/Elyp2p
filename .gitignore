@@ -21,5 +21,3 @@ mobile/android/*.keystore
 # IDE
 .idea/
 .vscode/
-*.apk
-Elysian Flee.apk

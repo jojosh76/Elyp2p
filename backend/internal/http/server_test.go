@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"p2p-delivery/backend/internal/auth"
 	"p2p-delivery/backend/internal/domain"
 	"p2p-delivery/backend/internal/store"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestAdminEndpointDeniedForClient(t *testing.T) {
@@ -144,6 +145,24 @@ func TestEscrowLifecycleActions(t *testing.T) {
 	assertStatus(t, srv, http.MethodPost, "/v1/escrows/"+escrow.ID+"/fund", clientToken, nil, http.StatusOK)
 	assertStatus(t, srv, http.MethodPost, "/v1/escrows/"+escrow.ID+"/dispute", clientToken, nil, http.StatusOK)
 	assertStatus(t, srv, http.MethodPost, "/v1/escrows/"+escrow.ID+"/refund", clientToken, nil, http.StatusOK)
+}
+
+func TestLogoutRevokesToken(t *testing.T) {
+	srv, repo, am := newTestServer(5, 5)
+	user := mustCreateUser(t, repo, domain.User{
+		Email:        "client4@test.local",
+		FullName:     "Client Four",
+		Role:         domain.RoleClient,
+		PasswordHash: mustHash(t, "Client#12345"),
+		KYCStatus:    "unverified",
+		Phone:        "+14155550115",
+	})
+	token, err := am.Issue(user.ID, user.Role)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+	assertStatus(t, srv, http.MethodPost, "/v1/auth/logout", token, nil, http.StatusOK)
+	assertStatus(t, srv, http.MethodGet, "/v1/me", token, nil, http.StatusUnauthorized)
 }
 
 func newTestServer(authMaxFails, otpMaxFails int) (*Server, store.Repository, *auth.Manager) {

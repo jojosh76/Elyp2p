@@ -537,7 +537,7 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             const SizedBox(height: 8),
             const Text('My Matches',
                 style: TextStyle(fontWeight: FontWeight.bold)),
@@ -559,7 +559,7 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             const SizedBox(height: 8),
             const Text('My Escrows',
                 style: TextStyle(fontWeight: FontWeight.bold)),
@@ -586,7 +586,7 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

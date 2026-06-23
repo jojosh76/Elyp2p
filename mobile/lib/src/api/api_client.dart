@@ -149,17 +149,26 @@ class ApiClient {
     return currentUser!;
   }
 
-  Map<String, dynamic> _mkUser(String role, String email, String fullName) => {
+  Map<String, dynamic> _mkUser(
+    String role,
+    String email,
+    String fullName, {
+    String phone = '',
+    String permanentAddress = '',
+    String passportNumber = '',
+    String countryOfResidence = 'US',
+  }) =>
+      {
         'id': _next('u_'),
         'email': email,
         'full_name': fullName,
         'role': (role == 'admin' || role == 'traveler') ? role : 'client',
-        'phone': '',
+        'phone': phone,
         'bio': '',
         'avatar_url': '',
-        'permanent_address': '',
-        'country_of_residence': 'US',
-        'passport_number': '',
+        'permanent_address': permanentAddress,
+        'country_of_residence': countryOfResidence,
+        'passport_number': passportNumber,
         'kyc_status': role == 'traveler' ? 'pending' : 'not_required',
       };
 
@@ -180,7 +189,16 @@ class ApiClient {
           : (email.toLowerCase().contains('travel')
               ? 'traveler'
               : ((body?['role'] ?? 'client').toString()));
-      final u = _mkUser(inferred, email, fn);
+      final u = _mkUser(
+        inferred,
+        email,
+        fn,
+        phone: (body?['phone'] ?? '').toString(),
+        permanentAddress: (body?['permanent_address'] ?? '').toString(),
+        passportNumber: (body?['passport_number'] ?? '').toString(),
+        countryOfResidence:
+            (body?['country_of_residence'] ?? 'US').toString(),
+      );
       token = 'demo-token-${DateTime.now().millisecondsSinceEpoch}';
       currentUser = u;
       return <String, dynamic>{
@@ -194,6 +212,11 @@ class ApiClient {
       token = null;
       currentUser = null;
       return <String, dynamic>{'ok': true};
+    }
+    if (path == '/v1/auth/logout' && method == 'POST') {
+      token = null;
+      currentUser = null;
+      return <String, dynamic>{'status': 'logged_out'};
     }
     if (path == '/v1/me/profile' && method == 'GET') return _userOrThrow();
     if (path == '/v1/me/profile' && method == 'PUT') {
@@ -564,6 +587,19 @@ class ApiClient {
       (await _call('GET', '/v1/me', auth: true)) as Map<String, dynamic>;
   Future<void> deleteMe() async {
     await _call('DELETE', '/v1/me', auth: true);
+    token = null;
+    currentUser = null;
+    await persistSession();
+  }
+
+  Future<void> logout() async {
+    try {
+      await _call('POST', '/v1/auth/logout', auth: true);
+    } finally {
+      token = null;
+      currentUser = null;
+      await persistSession();
+    }
   }
 
   Future<bool> healthz() async {
@@ -575,9 +611,13 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> profile() async =>
-      (await _call('GET', '/v1/me/profile', auth: true))
-          as Map<String, dynamic>;
+  Future<Map<String, dynamic>> profile() async {
+    final out = (await _call('GET', '/v1/me/profile', auth: true))
+        as Map<String, dynamic>;
+    currentUser = <String, dynamic>{...?currentUser, ...out};
+    await persistSession();
+    return out;
+  }
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) async {
     final out = (await _call('PUT', '/v1/me/profile', auth: true, body: body))
         as Map<String, dynamic>;

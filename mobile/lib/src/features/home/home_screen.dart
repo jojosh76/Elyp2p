@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => Navigator.pop(context, idx),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),
