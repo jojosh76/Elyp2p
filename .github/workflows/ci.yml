@@ -270,7 +270,8 @@ jobs:
     name: 🚀 Deploy — Production Server
     runs-on: ubuntu-latest
     needs: [docker, apk]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    # Render déploie automatiquement depuis GitHub — job SSH désactivé
+    if: false
 
     environment:
       name: production
