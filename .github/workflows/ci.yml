@@ -5,7 +5,6 @@ on:
     branches: ["**"]
   pull_request:
 
-# ─── Variables globales ────────────────────────────────────────────────────────
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
@@ -22,7 +21,6 @@ jobs:
         working-directory: backend
 
     services:
-      # PostgreSQL réel pour les tests d'intégration
       postgres:
         image: postgres:16
         env:
@@ -100,20 +98,17 @@ jobs:
         run: flutter pub get
 
       - name: 🔍 Flutter analyze
-        # --fatal-warnings bloque sur les erreurs et warnings réels
-        # mais pas sur les "info" (dead code, unused imports cosmétiques)
-        # Retire --fatal-warnings si tu veux juste voir sans bloquer
+        # --fatal-warnings bloque sur warnings et erreurs, pas sur les infos cosmétiques
         run: flutter analyze --fatal-warnings
 
       - name: 🧪 Flutter test
         run: flutter test --coverage
 
-      - name: 📊 Coverage report (résumé local)
+      - name: 📊 Coverage report
         if: always()
         run: |
           if [ -f coverage/lcov.info ]; then
             echo "### 📊 Flutter Coverage" >> $GITHUB_STEP_SUMMARY
-            # Compter les lignes couvertes vs total
             LINES=$(grep -c "^DA:" coverage/lcov.info 2>/dev/null || echo 0)
             COVERED=$(grep -c "^DA:[0-9]*,[^0]" coverage/lcov.info 2>/dev/null || echo 0)
             echo "- Lignes instrumentées : $LINES" >> $GITHUB_STEP_SUMMARY
@@ -123,17 +118,17 @@ jobs:
           fi
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # JOB 3 — Docker Build & Push sur GHCR (uniquement sur main/master)
+  # JOB 3 — Docker Build & Push (main/master uniquement)
   # ══════════════════════════════════════════════════════════════════════════════
   docker:
     name: 🐳 Docker — Build & Push
     runs-on: ubuntu-latest
-    needs: [backend, mobile]   # attend que les tests passent
+    needs: [backend, mobile]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     permissions:
       contents: read
-      packages: write   # nécessaire pour pusher sur ghcr.io
+      packages: write
 
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
@@ -150,17 +145,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷️  Docker metadata (tags & labels)
+      - name: 🏷️  Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Tag avec le SHA court du commit
             type=sha,prefix=sha-,format=short
-            # Tag 'latest' sur main/master
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            # Tag avec la date (YYYYMMDD)
             type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
 
       - name: 🏗️  Setup Docker Buildx
@@ -189,7 +181,7 @@ jobs:
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # JOB 4 — Build APK Flutter (release)
+  # JOB 4 — Build APK Flutter release
   # ══════════════════════════════════════════════════════════════════════════════
   apk:
     name: 📦 APK — Flutter Release Build
@@ -208,15 +200,13 @@ jobs:
           flutter-version: "3.44.4"
           cache: true
 
-      - name: ☕ Setup Java (pour Gradle)
+      - name: ☕ Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: 🔑 Decode keystore (depuis secret base64)
-        # Le keystore est stocké en base64 dans le secret KEYSTORE_BASE64
-        # Pour créer le secret: base64 -i my-release-key.jks | pbcopy
+      - name: 🔑 Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
@@ -227,7 +217,7 @@ jobs:
             echo "⚠️  No keystore — building unsigned APK"
           fi
 
-      - name: 📝 Créer key.properties (si keystore disponible)
+      - name: 📝 Créer key.properties
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -253,6 +243,7 @@ jobs:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
           flutter build apk --release \
+            --target=lib/main.dart \
             --dart-define=API_BASE_URL=${API_BASE_URL:-https://api.elysian-flee.com}
           echo "✅ APK built"
           ls -lh build/app/outputs/flutter-apk/
@@ -273,12 +264,12 @@ jobs:
           echo "- **Download**: voir Artifacts ci-dessus" >> $GITHUB_STEP_SUMMARY
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # JOB 5 — Déploiement sur le serveur (SSH + Docker Compose)
+  # JOB 5 — Déploiement SSH sur le serveur
   # ══════════════════════════════════════════════════════════════════════════════
   deploy:
     name: 🚀 Deploy — Production Server
     runs-on: ubuntu-latest
-    needs: [docker, apk]   # attend image Docker et APK
+    needs: [docker, apk]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     environment:
@@ -286,7 +277,7 @@ jobs:
       url: https://api.elysian-flee.com
 
     steps:
-      - name: ⬇️  Checkout (pour récupérer docker-compose)
+      - name: ⬇️  Checkout
         uses: actions/checkout@v4
 
       - name: 🔑 Setup SSH agent
@@ -294,83 +285,74 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: 🌐 Ajouter le serveur aux known_hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+      - name: 🌐 Known hosts
+        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 📋 Vérifier que le serveur est joignable
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH OK'"
+      - name: 📋 Test connexion SSH
+        run: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH OK'"
 
-      - name: 📤 Copier docker-compose sur le serveur
+      - name: 📤 Copier docker-compose
         run: |
           scp deploy/docker-compose.external-test.yml \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/app/elysian-flee/docker-compose.yml
 
-      - name: 🔑 Login Docker registry sur le serveur
+      - name: 🔑 Login Docker sur le serveur
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "echo ${{ secrets.GITHUB_TOKEN }} | \
              docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
 
-      - name: 🚀 Déployer la nouvelle image
+      - name: 🚀 Déployer
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          FULL_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          ssh $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+          ssh $DEPLOY_USER@$DEPLOY_HOST bash << ENDSSH
             set -e
             cd /app/elysian-flee
-
-            echo "🔄 Pulling nouvelle image..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-            echo "🔄 Redémarrage du service API (zero-downtime)..."
+            echo "🔄 Pull image $FULL_IMAGE..."
+            docker pull $FULL_IMAGE
+            echo "🔄 Restart API..."
             docker compose up -d --no-deps --pull always api
-
-            echo "⏳ Attente du démarrage (30s)..."
+            echo "⏳ Attente démarrage (30s)..."
             sleep 30
-
             echo "🏥 Health check..."
-            curl -sf http://localhost:8081/healthz || (echo "❌ Health check FAILED" && exit 1)
-
-            echo "🧹 Nettoyage des vieilles images..."
+            curl -sf http://localhost:8081/healthz || (echo "❌ FAILED" && exit 1)
+            echo "🧹 Cleanup..."
             docker image prune -f
-
-            echo "✅ Déploiement terminé avec succès"
+            echo "✅ Déploiement OK"
           ENDSSH
 
-      - name: ✅ Vérification post-déploiement
+      - name: ✅ Vérification HTTPS post-déploiement
         run: |
           sleep 10
           HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
             https://api.elysian-flee.com/healthz || echo "000")
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Production health check OK (HTTP $HTTP_CODE)"
+            echo "✅ Production OK (HTTP $HTTP_CODE)"
           else
-            echo "❌ Production health check FAILED (HTTP $HTTP_CODE)"
+            echo "❌ Production FAILED (HTTP $HTTP_CODE)"
             exit 1
           fi
 
-      - name: 📋 Résumé du déploiement
+      - name: 📋 Résumé déploiement
         if: always()
         run: |
           echo "### 🚀 Déploiement Production" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Serveur**: \`${{ secrets.DEPLOY_HOST }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Heure**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Déclenché par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: 🔔 Notification Slack en cas d'échec
+      - name: 🔔 Slack si échec
         if: failure()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "❌ *Déploiement ÉCHOUÉ* — Elysian Flee\n*Commit*: `${{ github.sha }}`\n*Auteur*: @${{ github.actor }}\n*Lien*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              "text": "❌ *Deploy FAILED* — Elysian Flee\n*Commit*: `${{ github.sha }}`\n*Par*: @${{ github.actor }}\n*Lien*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        continue-on-error: true   # Ne bloque pas si Slack non configuré
+        continue-on-error: true
