@@ -184,11 +184,17 @@ class ApiClient {
         path == '/v1/auth/social') {
       final email = (body?['email'] ?? 'demo@local.dev').toString();
       final fn = (body?['full_name'] ?? 'Demo User').toString();
-      final inferred = email.toLowerCase().contains('admin')
-          ? 'admin'
-          : (email.toLowerCase().contains('travel')
-              ? 'traveler'
-              : ((body?['role'] ?? 'client').toString()));
+      if (path == '/v1/auth/register' &&
+          (body?['role'] ?? 'client').toString() == 'admin') {
+        throw Exception('admin accounts must be created by an existing administrator');
+      }
+      final inferred = path == '/v1/auth/register'
+          ? (body?['role'] ?? 'client').toString()
+          : email.toLowerCase().contains('admin')
+              ? 'admin'
+              : (email.toLowerCase().contains('travel')
+                  ? 'traveler'
+                  : ((body?['role'] ?? 'client').toString()));
       final u = _mkUser(
         inferred,
         email,

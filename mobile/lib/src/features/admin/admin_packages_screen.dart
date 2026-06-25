@@ -1,12 +1,7 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_file_dialog/flutter_file_dialog.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:http/http.dart' as http;
 import '../../api/api_client.dart';
 import '../../widgets/responsive_page.dart';
+import 'admin_asset_helper.dart';
 
 class AdminPackagesScreen extends StatefulWidget {
   const AdminPackagesScreen({super.key, required this.api});
@@ -63,6 +58,14 @@ class _AdminPackagesScreenState extends State<AdminPackagesScreen> {
         );
       }
     }
+  }
+
+  Future<void> _previewAsset(AdminAssetRef asset) async {
+    await previewAdminAsset(context, asset);
+  }
+
+  Future<void> _downloadAsset(AdminAssetRef asset) async {
+    await downloadAdminAsset(context, asset);
   }
 
   Future<void> _openReviewActionDialog({
@@ -129,210 +132,11 @@ class _AdminPackagesScreenState extends State<AdminPackagesScreen> {
     }
   }
 
-  Map<String, dynamic>? _parseJsonMap(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      if (decoded is Map) return decoded.cast<String, dynamic>();
-    } catch (_) {}
-    return null;
-  }
+  Map<String, dynamic>? _parseJsonMap(String value) => parseJsonMap(value);
 
-  dynamic _parseJsonDynamic(String value) {
-    try {
-      return jsonDecode(value);
-    } catch (_) {
-      return null;
-    }
-  }
+  dynamic _parseJsonDynamic(String value) => parseJsonDynamic(value);
 
-  List<_PkgAssetRef> _extractAssetRefs(String raw) {
-    final out = <_PkgAssetRef>[];
-    final parsed = _parseJsonMap(raw);
-    if (parsed == null) return out;
-    void walk(String prefix, dynamic node) {
-      if (node is Map) {
-        for (final entry in node.entries) {
-          final key = entry.key.toString();
-          final nextPrefix = prefix.isEmpty ? key : '$prefix > $key';
-          walk(nextPrefix, entry.value);
-        }
-        return;
-      }
-      if (node is List) {
-        for (final v in node) {
-          walk(prefix, v);
-        }
-        return;
-      }
-      if (node is String) {
-        final value = node.trim();
-        if (value.isEmpty) return;
-        final lower = value.toLowerCase();
-        final looksLikeFile = lower.startsWith('http://') ||
-            lower.startsWith('https://') ||
-            lower.startsWith('content://') ||
-            lower.startsWith('/') ||
-            lower.contains(':\\') ||
-            lower.endsWith('.png') ||
-            lower.endsWith('.jpg') ||
-            lower.endsWith('.jpeg') ||
-            lower.endsWith('.webp') ||
-            lower.endsWith('.gif') ||
-            lower.endsWith('.heic') ||
-            lower.endsWith('.pdf');
-        if (!looksLikeFile) return;
-        out.add(_PkgAssetRef(label: prefix, pathOrUrl: value));
-      }
-    }
-
-    walk('', parsed);
-    return out;
-  }
-
-  bool _isImage(String pathOrUrl) {
-    final v = pathOrUrl.toLowerCase();
-    return v.endsWith('.png') ||
-        v.endsWith('.jpg') ||
-        v.endsWith('.jpeg') ||
-        v.endsWith('.webp') ||
-        v.endsWith('.gif') ||
-        v.endsWith('.heic');
-  }
-
-  bool _isPdf(String pathOrUrl) => pathOrUrl.toLowerCase().endsWith('.pdf');
-
-  String _basename(String pathOrUrl) {
-    if (pathOrUrl.startsWith('content://')) {
-      final u = Uri.tryParse(pathOrUrl);
-      if (u != null && u.pathSegments.isNotEmpty) return u.pathSegments.last;
-      return 'document';
-    }
-    final normalized = pathOrUrl.replaceAll('\\', '/');
-    final idx = normalized.lastIndexOf('/');
-    if (idx < 0 || idx + 1 >= normalized.length) return normalized;
-    return normalized.substring(idx + 1).split('?').first;
-  }
-
-  String _safeFileName(String input) {
-    final raw = input.trim().isEmpty ? 'document' : input.trim();
-    final cleaned = raw.replaceAll(RegExp(r'[<>:"/\\\\|?*]'), '_');
-    return cleaned.isEmpty ? 'document' : cleaned;
-  }
-
-  Future<void> _previewAsset(_PkgAssetRef asset) async {
-    if (_isImage(asset.pathOrUrl)) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => Dialog(
-          child: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4,
-            child: asset.pathOrUrl.startsWith('http://') ||
-                    asset.pathOrUrl.startsWith('https://')
-                ? Image.network(asset.pathOrUrl, fit: BoxFit.contain)
-                : Image.file(File(asset.pathOrUrl), fit: BoxFit.contain),
-          ),
-        ),
-      );
-      return;
-    }
-    if (_isPdf(asset.pathOrUrl)) {
-      try {
-        String filePath = asset.pathOrUrl;
-        if (asset.pathOrUrl.startsWith('http://') ||
-            asset.pathOrUrl.startsWith('https://')) {
-          final res = await http.get(Uri.parse(asset.pathOrUrl));
-          if (res.statusCode >= 400) {
-            throw Exception('Failed to fetch PDF (${res.statusCode})');
-          }
-          final tmp = File(
-            '${Directory.systemTemp.path}${Platform.pathSeparator}${DateTime.now().millisecondsSinceEpoch}_${_basename(asset.pathOrUrl)}',
-          );
-          await tmp.writeAsBytes(res.bodyBytes, flush: true);
-          filePath = tmp.path;
-        } else if (asset.pathOrUrl.startsWith('content://')) {
-          // Can't preview content:// reliably here; download first.
-          throw Exception('Download the PDF first to open it.');
-        } else {
-          if (!await File(filePath).exists()) {
-            throw Exception('PDF file not found');
-          }
-        }
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => Dialog(
-            child: SizedBox(
-                width: 700, height: 720, child: PDFView(filePath: filePath)),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Preview not supported for this file type.')),
-    );
-  }
-
-  Future<void> _downloadAsset(_PkgAssetRef asset) async {
-    try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preparing download...')),
-        );
-      }
-      final name = _safeFileName(_basename(asset.pathOrUrl));
-      late final List<int> bytes;
-      if (asset.pathOrUrl.startsWith('http://') ||
-          asset.pathOrUrl.startsWith('https://')) {
-        final res = await http.get(Uri.parse(asset.pathOrUrl));
-        if (res.statusCode >= 400) {
-          throw Exception('Failed to download (${res.statusCode})');
-        }
-        bytes = res.bodyBytes;
-      } else if (asset.pathOrUrl.startsWith('content://')) {
-        final saved = await FlutterFileDialog.saveFile(
-          params: SaveFileDialogParams(
-              sourceFilePath: asset.pathOrUrl, fileName: name),
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  saved == null ? 'Download canceled' : 'Downloaded: $saved')),
-        );
-        return;
-      } else {
-        final f = File(asset.pathOrUrl);
-        if (!await f.exists()) throw Exception('File not found on this device');
-        bytes = await f.readAsBytes();
-      }
-      final savedPath = await FlutterFileDialog.saveFile(
-        params: SaveFileDialogParams(
-            data: Uint8List.fromList(bytes), fileName: name),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(savedPath == null
-                ? 'Download canceled'
-                : 'Downloaded: $savedPath')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
-  }
+  List<AdminAssetRef> _extractAssetRefs(String raw) => extractAdminAssetRefs(raw);
 
   Future<void> _openDetails(Map<String, dynamic> item) async {
     final receiptRef = (item['receipt_ref'] as String?) ?? '';
@@ -392,7 +196,7 @@ class _AdminPackagesScreenState extends State<AdminPackagesScreen> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600)),
                               const SizedBox(height: 4),
-                              Text(_basename(a.pathOrUrl)),
+                              Text(adminAssetBasename(a.pathOrUrl)),
                               const SizedBox(height: 10),
                               Wrap(
                                 spacing: 8,
@@ -400,7 +204,7 @@ class _AdminPackagesScreenState extends State<AdminPackagesScreen> {
                                   OutlinedButton.icon(
                                     onPressed: () => _previewAsset(a),
                                     icon: const Icon(Icons.remove_red_eye),
-                                    label: Text(_isPdf(a.pathOrUrl)
+                                    label: Text(isAdminAssetPdf(a.pathOrUrl)
                                         ? 'Open'
                                         : 'Preview'),
                                   ),
@@ -660,10 +464,4 @@ class _AdminPackagesScreenState extends State<AdminPackagesScreen> {
       ),
     );
   }
-}
-
-class _PkgAssetRef {
-  const _PkgAssetRef({required this.label, required this.pathOrUrl});
-  final String label;
-  final String pathOrUrl;
 }

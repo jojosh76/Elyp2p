@@ -468,7 +468,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               items: const [
                                 DropdownMenuItem(value: 'client', child: Text('Client')),
                                 DropdownMenuItem(value: 'traveler', child: Text('Traveler')),
-                                DropdownMenuItem(value: 'admin', child: Text('Admin')),
                               ],
                               onChanged: (v) => setState(() => _role = v ?? 'client'),
                             ),

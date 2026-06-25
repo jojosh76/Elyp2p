@@ -3,8 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../api/api_client.dart';
-import '../../widgets/responsive_page.dart';
-import '../../widgets/animated_entry.dart';
 import '../auth/auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -275,10 +273,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.10),
+                        color: Colors.red.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(14),
                         border:
-                            Border.all(color: Colors.red.withOpacity(0.30)),
+                            Border.all(color: Colors.red.withValues(alpha: 0.30)),
                       ),
                       child: Row(children: [
                         const Icon(Icons.error_outline,
@@ -326,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   OutlinedButton.icon(
                     onPressed: _loading ? null : _deleteMyAccount,
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.red.withOpacity(0.5)),
+                      side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
@@ -384,8 +382,8 @@ class _HeroBanner extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 scheme.primary,
-                scheme.primary.withOpacity(0.55),
-                scheme.secondary.withOpacity(0.40),
+                scheme.primary.withValues(alpha: 0.55),
+                scheme.secondary.withValues(alpha: 0.40),
               ],
             ),
           ),
@@ -399,7 +397,7 @@ class _HeroBanner extends StatelessWidget {
                 height: 160,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -411,7 +409,7 @@ class _HeroBanner extends StatelessWidget {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -493,7 +491,7 @@ class _HeroBanner extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.18),
+                      color: Colors.black.withValues(alpha: 0.18),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     )
@@ -502,7 +500,7 @@ class _HeroBanner extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 50,
                   backgroundColor:
-                      Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                   backgroundImage: avatarProvider,
                   child: avatarProvider == null
                       ? Icon(Icons.person,
@@ -545,7 +543,7 @@ class _HeroBanner extends StatelessWidget {
           child: editing
               ? const SizedBox.shrink()
               : Material(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(999),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(999),
@@ -583,11 +581,11 @@ class _InfoCard extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.15),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -618,7 +616,7 @@ class _InfoCard extends StatelessWidget {
               thickness: 1,
               height: 16,
               color:
-                  Theme.of(context).colorScheme.outline.withOpacity(0.10)),
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.10)),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
             child: Column(
@@ -667,7 +665,7 @@ class _Field extends StatelessWidget {
         fontSize: 14,
         color: enabled
             ? null
-            : Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
       ),
       decoration: InputDecoration(
         labelText: label,
@@ -675,7 +673,7 @@ class _Field extends StatelessWidget {
         filled: true,
         fillColor: enabled
             ? Theme.of(context).colorScheme.surface
-            : Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
@@ -684,7 +682,7 @@ class _Field extends StatelessWidget {
               color: Theme.of(context)
                   .colorScheme
                   .outline
-                  .withOpacity(0.3)),
+                  .withValues(alpha: 0.3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -692,7 +690,7 @@ class _Field extends StatelessWidget {
               color: Theme.of(context)
                   .colorScheme
                   .outline
-                  .withOpacity(0.3)),
+                  .withValues(alpha: 0.3)),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -700,7 +698,7 @@ class _Field extends StatelessWidget {
               color: Theme.of(context)
                   .colorScheme
                   .outline
-                  .withOpacity(0.10)),
+                  .withValues(alpha: 0.10)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -795,12 +793,12 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: highlight
-            ? scheme.primary.withOpacity(0.15)
-            : scheme.onSurface.withOpacity(0.07),
+            ? scheme.primary.withValues(alpha: 0.15)
+            : scheme.onSurface.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
             color: highlight
-                ? scheme.primary.withOpacity(0.35)
+                ? scheme.primary.withValues(alpha: 0.35)
                 : Colors.transparent),
       ),
       child: Row(
@@ -808,7 +806,7 @@ class _Chip extends StatelessWidget {
         children: [
           Icon(icon,
               size: 13,
-              color: highlight ? scheme.primary : scheme.onSurface.withOpacity(0.65)),
+              color: highlight ? scheme.primary : scheme.onSurface.withValues(alpha: 0.65)),
           const SizedBox(width: 5),
           Text(
             label,
@@ -817,7 +815,7 @@ class _Chip extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: highlight
                   ? scheme.primary
-                  : scheme.onSurface.withOpacity(0.75),
+                  : scheme.onSurface.withValues(alpha: 0.75),
             ),
           ),
         ],

@@ -1,12 +1,7 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter_file_dialog/flutter_file_dialog.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../api/api_client.dart';
 import '../../widgets/responsive_page.dart';
+import 'admin_asset_helper.dart';
 
 class AdminKYCScreen extends StatefulWidget {
   const AdminKYCScreen({super.key, required this.api});
@@ -41,65 +36,9 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
     }
   }
 
-  Map<String, dynamic>? _parseJsonMap(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      if (decoded is Map) return decoded.cast<String, dynamic>();
-    } catch (_) {}
-    return null;
-  }
+  Map<String, dynamic>? _parseJsonMap(String value) => parseJsonMap(value);
 
-  List<_KycAssetRef> _extractAssetRefs(String raw) {
-    final out = <_KycAssetRef>[];
-    final parsed = _parseJsonMap(raw);
-    if (parsed == null) return out;
-    void walk(String prefix, dynamic node) {
-      if (node is Map) {
-        for (final entry in node.entries) {
-          final key = entry.key.toString();
-          final nextPrefix = prefix.isEmpty ? key : '$prefix > $key';
-          walk(nextPrefix, entry.value);
-        }
-        return;
-      }
-      if (node is String) {
-        final value = node.trim();
-        if (value.isEmpty) return;
-        final lower = value.toLowerCase();
-        final looksLikeFile = lower.startsWith('http://') ||
-            lower.startsWith('https://') ||
-            lower.startsWith('content://') ||
-            lower.startsWith('/') ||
-            lower.contains(':\\') ||
-            lower.endsWith('.png') ||
-            lower.endsWith('.jpg') ||
-            lower.endsWith('.jpeg') ||
-            lower.endsWith('.gif') ||
-            lower.endsWith('.heic') ||
-            lower.endsWith('.webp') ||
-            lower.endsWith('.pdf');
-        if (!looksLikeFile) return;
-        out.add(_KycAssetRef(label: prefix, pathOrUrl: value));
-      }
-    }
-
-    walk('', parsed);
-    return out;
-  }
-
-  bool _isImage(String pathOrUrl) {
-    final v = pathOrUrl.toLowerCase();
-    return v.endsWith('.png') ||
-        v.endsWith('.jpg') ||
-        v.endsWith('.jpeg') ||
-        v.endsWith('.webp') ||
-        v.endsWith('.gif') ||
-        v.endsWith('.heic');
-  }
-
-  bool _isPdf(String pathOrUrl) {
-    return pathOrUrl.toLowerCase().endsWith('.pdf');
-  }
+  List<AdminAssetRef> _extractAssetRefs(String raw) => extractAdminAssetRefs(raw);
 
   List<MapEntry<String, String>> _flattenMap(Map<String, dynamic> map, [String prefix = '']) {
     final out = <MapEntry<String, String>>[];
@@ -120,178 +59,41 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
   }
 
   Widget _friendlyMapView(Map<String, dynamic> map) {
-    final rows = _flattenMap(map);
-    if (rows.isEmpty) {
-      return const Text('No structured details available');
+    final entries = _flattenMap(map);
+    if (entries.isEmpty) {
+      return const Text('Aucune donnée disponible.');
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: rows
-          .map(
-            (r) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      r.key,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 6, child: Text(r.value)),
-                ],
+      children: entries.map((e) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 170,
+                child: Text(
+                  e.key,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
-          )
-          .toList(),
+              Expanded(
+                child: Text(e.value.isEmpty ? '-' : e.value),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
-  String _basename(String pathOrUrl) {
-    if (pathOrUrl.startsWith('content://')) {
-      final u = Uri.tryParse(pathOrUrl);
-      if (u != null && u.pathSegments.isNotEmpty) {
-        return u.pathSegments.last;
-      }
-      return 'document';
-    }
-    final normalized = pathOrUrl.replaceAll('\\', '/');
-    final idx = normalized.lastIndexOf('/');
-    if (idx < 0 || idx + 1 >= normalized.length) return normalized;
-    final name = normalized.substring(idx + 1);
-    return name.split('?').first;
+  Future<void> _previewAsset(AdminAssetRef asset) async {
+    await previewAdminAsset(context, asset);
   }
 
-  String _safeFileName(String input) {
-    final raw = input.trim().isEmpty ? 'document' : input.trim();
-    final cleaned = raw.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    if (cleaned.isEmpty) return 'document';
-    return cleaned;
-  }
-
-  Future<void> _previewAsset(_KycAssetRef asset) async {
-    if (_isImage(asset.pathOrUrl)) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => Dialog(
-          child: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4,
-            child: asset.pathOrUrl.startsWith('http://') || asset.pathOrUrl.startsWith('https://')
-                ? Image.network(asset.pathOrUrl, fit: BoxFit.contain)
-                : Image.file(File(asset.pathOrUrl), fit: BoxFit.contain),
-          ),
-        ),
-      );
-      return;
-    }
-    if (_isPdf(asset.pathOrUrl)) {
-      try {
-        String filePath = asset.pathOrUrl;
-        if (asset.pathOrUrl.startsWith('http://') || asset.pathOrUrl.startsWith('https://')) {
-          final res = await http.get(Uri.parse(asset.pathOrUrl));
-          if (res.statusCode >= 400) {
-            throw Exception('Failed to fetch PDF (${res.statusCode})');
-          }
-          final tmp = File(
-            '${Directory.systemTemp.path}${Platform.pathSeparator}${DateTime.now().millisecondsSinceEpoch}_${_basename(asset.pathOrUrl)}',
-          );
-          await tmp.writeAsBytes(res.bodyBytes, flush: true);
-          filePath = tmp.path;
-        } else {
-          final f = File(filePath);
-          if (!await f.exists()) throw Exception('PDF file not found');
-        }
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => Dialog(
-            child: SizedBox(
-              width: 700,
-              height: 720,
-              child: PDFView(filePath: filePath),
-            ),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preview for this file type is not supported. Use Download.')),
-    );
-  }
-
-  Future<void> _downloadAsset(_KycAssetRef asset) async {
-    try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preparing download...')),
-        );
-      }
-      final name = _safeFileName(_basename(asset.pathOrUrl));
-      late final List<int> bytes;
-      String? savedPath;
-      if (asset.pathOrUrl.startsWith('http://') || asset.pathOrUrl.startsWith('https://')) {
-        final res = await http.get(Uri.parse(asset.pathOrUrl));
-        if (res.statusCode >= 400) {
-          throw Exception('Failed to download file (${res.statusCode})');
-        }
-        bytes = res.bodyBytes;
-      } else if (asset.pathOrUrl.startsWith('content://')) {
-        savedPath = await FlutterFileDialog.saveFile(
-          params: SaveFileDialogParams(
-            sourceFilePath: asset.pathOrUrl,
-            fileName: name,
-          ),
-        );
-        if (savedPath == null) {
-          throw Exception('Download canceled');
-        }
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded: $savedPath')),
-        );
-        return;
-      } else {
-        // Local path. If it does not exist on this device, admin cannot download it.
-        final file = File(asset.pathOrUrl);
-        if (!await file.exists()) {
-          throw Exception('File not found on device');
-        }
-        bytes = await file.readAsBytes();
-      }
-      savedPath = await FlutterFileDialog.saveFile(
-        params: SaveFileDialogParams(
-          data: Uint8List.fromList(bytes),
-          fileName: name,
-        ),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            savedPath == null
-                ? 'Download canceled'
-                : 'Downloaded: $savedPath',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
+  Future<void> _downloadAsset(AdminAssetRef asset) async {
+    await downloadAdminAsset(context, asset);
   }
 
   Future<void> _openReview(Map<String, dynamic> item) async {
@@ -333,7 +135,7 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(_isPdf(asset.pathOrUrl)
+                                  Icon(isAdminAssetPdf(asset.pathOrUrl)
                                       ? Icons.picture_as_pdf
                                       : Icons.image),
                                   const SizedBox(width: 8),
@@ -350,7 +152,7 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
                                 ],
                               ),
                               const SizedBox(height: 6),
-                              Text(_basename(asset.pathOrUrl)),
+                              Text(adminAssetBasename(asset.pathOrUrl)),
                               const SizedBox(height: 10),
                               Wrap(
                                 spacing: 8,
@@ -359,7 +161,7 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
                                   OutlinedButton.icon(
                                     onPressed: () => _previewAsset(asset),
                                     icon: const Icon(Icons.remove_red_eye),
-                                    label: Text(_isPdf(asset.pathOrUrl)
+                                    label: Text(isAdminAssetPdf(asset.pathOrUrl)
                                         ? 'Open'
                                         : 'Preview'),
                                   ),
@@ -494,12 +296,6 @@ class _AdminKYCScreenState extends State<AdminKYCScreen> {
       ),
     );
   }
-}
-
-class _KycAssetRef {
-  const _KycAssetRef({required this.label, required this.pathOrUrl});
-  final String label;
-  final String pathOrUrl;
 }
 
 class _KycReviewDecision {
