@@ -149,6 +149,8 @@ Future<void> previewAdminAsset(BuildContext context, AdminAssetRef asset) async 
           throw Exception('PDF file not found');
         }
       }
+      // ✅ mounted check avant usage de context après les awaits
+      if (!context.mounted) return;
       await showDialog<void>(
         context: context,
         builder: (context) => Dialog(
