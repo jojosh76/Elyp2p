@@ -108,12 +108,19 @@ jobs:
       - name: 🧪 Flutter test
         run: flutter test --coverage
 
-      - name: 📊 Upload coverage
-        uses: codecov/codecov-action@v4
+      - name: 📊 Coverage report (résumé local)
         if: always()
-        with:
-          files: mobile/coverage/lcov.info
-          flags: flutter
+        run: |
+          if [ -f coverage/lcov.info ]; then
+            echo "### 📊 Flutter Coverage" >> $GITHUB_STEP_SUMMARY
+            # Compter les lignes couvertes vs total
+            LINES=$(grep -c "^DA:" coverage/lcov.info 2>/dev/null || echo 0)
+            COVERED=$(grep -c "^DA:[0-9]*,[^0]" coverage/lcov.info 2>/dev/null || echo 0)
+            echo "- Lignes instrumentées : $LINES" >> $GITHUB_STEP_SUMMARY
+            echo "- Lignes couvertes     : $COVERED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  Pas de fichier coverage/lcov.info généré" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ══════════════════════════════════════════════════════════════════════════════
   # JOB 3 — Docker Build & Push sur GHCR (uniquement sur main/master)
