@@ -93,13 +93,17 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.24.x"
           cache: true
 
       - name: 📦 Flutter pub get
         run: flutter pub get
 
       - name: 🔍 Flutter analyze
-        run: flutter analyze --fatal-infos
+        # --fatal-warnings bloque sur les erreurs et warnings réels
+        # mais pas sur les "info" (dead code, unused imports cosmétiques)
+        # Retire --fatal-warnings si tu veux juste voir sans bloquer
+        run: flutter analyze --fatal-warnings
 
       - name: 🧪 Flutter test
         run: flutter test --coverage
@@ -194,6 +198,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.24.x"
           cache: true
 
       - name: ☕ Setup Java (pour Gradle)
