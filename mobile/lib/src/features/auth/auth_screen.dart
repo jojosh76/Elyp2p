@@ -16,7 +16,8 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _name = TextEditingController();
@@ -32,7 +33,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   bool _obscurePassword = true;
   String? _error;
   final Map<String, Map<String, dynamic>> _providerConfigs = {};
-  late final TabController _tabController = TabController(length: 2, vsync: this);
+  late final TabController _tabController =
+      TabController(length: 2, vsync: this);
 
   @override
   void initState() {
@@ -63,7 +65,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       final next = <String, Map<String, dynamic>>{};
       for (final row in rows) {
         final map = (row as Map).cast<String, dynamic>();
-        final provider = (map['provider'] as String? ?? '').trim().toLowerCase();
+        final provider =
+            (map['provider'] as String? ?? '').trim().toLowerCase();
         if (provider.isNotEmpty) {
           next[provider] = map;
         }
@@ -103,8 +106,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         return;
       }
       if (_role == 'traveler' &&
-          (phone.isEmpty || address.isEmpty || passport.isEmpty || country.isEmpty)) {
-        setState(() => _error = 'Traveler requires phone, address, passport and country');
+          (phone.isEmpty ||
+              address.isEmpty ||
+              passport.isEmpty ||
+              country.isEmpty)) {
+        setState(() =>
+            _error = 'Traveler requires phone, address, passport and country');
         return;
       }
     }
@@ -162,7 +169,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             const Text('Enter the 6-digit code sent to your phone.'),
             if (devCode.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Dev OTP: $devCode', style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text('Dev OTP: $devCode',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ] else ...[
               const SizedBox(height: 8),
               const Text(
@@ -175,7 +183,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               controller: _otp,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: 'OTP Code'),
+              style: const TextStyle(color: Colors.black),
+              cursorColor: Colors.black,
+              decoration: const InputDecoration(
+                labelText: 'OTP Code',
+                labelStyle: TextStyle(color: Colors.black54),
+              ),
             ),
           ],
         ),
@@ -192,13 +205,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 return;
               }
               try {
-                final data = await widget.api.verifyOtp(otpSessionID: sessionID, otpCode: code);
+                final data = await widget.api
+                    .verifyOtp(otpSessionID: sessionID, otpCode: code);
                 if (!mounted) return;
                 Navigator.of(this.context).pop();
                 await _finalizeAuthSuccess(data);
               } catch (e) {
                 if (!mounted) return;
-                setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+                setState(() =>
+                    _error = e.toString().replaceFirst('Exception: ', ''));
               }
             },
             child: const Text('Verify'),
@@ -240,11 +255,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           if (accessToken == null || accessToken.isEmpty) {
             throw Exception('Google access token is missing');
           }
-          await widget.api.socialLogin(provider: 'google', accessToken: accessToken);
+          await widget.api
+              .socialLogin(provider: 'google', accessToken: accessToken);
           break;
         case 'apple':
           final cred = await SignInWithApple.getAppleIDCredential(
-            scopes: const [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+            scopes: const [
+              AppleIDAuthorizationScopes.email,
+              AppleIDAuthorizationScopes.fullName
+            ],
           );
           final idToken = cred.identityToken ?? '';
           if (idToken.isEmpty) {
@@ -275,7 +294,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       final msg = '${e.code}: ${e.message ?? ''}'.toLowerCase();
       if (msg.contains('sign_in_failed') && msg.contains('10')) {
         setState(() {
-          _error = 'Google Sign-In config error (code 10). Ask admin to set OAuth Client IDs and configure Android SHA fingerprints for package com.example.p2p_delivery_mobile.';
+          _error =
+              'Google Sign-In config error (code 10). Ask admin to set OAuth Client IDs and configure Android SHA fingerprints for package com.example.p2p_delivery_mobile.';
         });
       } else {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -289,8 +309,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final isGoogleEnabled = (_providerConfigs['google']?['enabled'] as bool?) ?? true;
-    final isAppleEnabled = (_providerConfigs['apple']?['enabled'] as bool?) ?? true;
+    final isGoogleEnabled =
+        (_providerConfigs['google']?['enabled'] as bool?) ?? true;
+    final isAppleEnabled =
+        (_providerConfigs['apple']?['enabled'] as bool?) ?? true;
     final isRegister = _tabController.index == 1;
 
     return Scaffold(
@@ -356,30 +378,44 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             ),
                             labelColor: Colors.white,
                             unselectedLabelColor: const Color(0xFFC5DAD6),
-                            tabs: const [Tab(text: 'Login'), Tab(text: 'Register')],
+                            tabs: const [
+                              Tab(text: 'Login'),
+                              Tab(text: 'Register')
+                            ],
                           ),
                           const SizedBox(height: 14),
                           TextField(
                             controller: _email,
                             keyboardType: TextInputType.emailAddress,
+                            style: const TextStyle(color: Colors.black),
+                            cursorColor: Colors.black,
                             decoration: const InputDecoration(
                               labelText: 'Email',
                               filled: true,
                               fillColor: Colors.white,
+                              labelStyle: TextStyle(color: Colors.black54),
                             ),
                           ),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _password,
                             obscureText: _obscurePassword,
+                            style: const TextStyle(color: Colors.black),
+                            cursorColor: Colors.black,
                             decoration: InputDecoration(
                               labelText: 'Password',
                               filled: true,
                               fillColor: Colors.white,
+                              labelStyle:
+                                  const TextStyle(color: Colors.black54),
                               suffixIcon: IconButton(
-                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword),
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                  color: Colors.black54,
                                 ),
                               ),
                             ),
@@ -388,29 +424,47 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           if (isRegister) ...[
                             TextField(
                               controller: _name,
+                              style: const TextStyle(color: Colors.black),
+                              cursorColor: Colors.black,
                               decoration: const InputDecoration(
                                 labelText: 'Full Name',
                                 filled: true,
                                 fillColor: Colors.white,
+                                labelStyle: TextStyle(color: Colors.black54),
                               ),
                             ),
                             const SizedBox(height: 10),
                             TextField(
                               controller: _phoneLocal,
                               keyboardType: TextInputType.phone,
+                              style: const TextStyle(color: Colors.black),
+                              cursorColor: Colors.black,
                               decoration: InputDecoration(
                                 labelText: 'Phone Number',
                                 hintText: 'e.g. 782123456',
+                                labelStyle:
+                                    const TextStyle(color: Colors.black54),
+                                hintStyle:
+                                    const TextStyle(color: Colors.black38),
                                 prefixIcon: InkWell(
                                   onTap: () {
                                     showCountryPicker(
                                       context: context,
                                       showPhoneCode: true,
-                                      favorite: const ['US', 'GB', 'RW', 'KE', 'NG', 'IN', 'FR'],
-                                        onSelect: (country) {
+                                      favorite: const [
+                                        'US',
+                                        'GB',
+                                        'RW',
+                                        'KE',
+                                        'NG',
+                                        'IN',
+                                        'FR'
+                                      ],
+                                      onSelect: (country) {
                                         setState(() {
                                           _selectedDialCode = country.phoneCode;
-                                          _selectedCountryCode = country.countryCode;
+                                          _selectedCountryCode =
+                                              country.countryCode;
                                         });
                                       },
                                     );
@@ -420,7 +474,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                     width: 108,
                                     child: Text(
                                       '$_selectedCountryCode +$_selectedDialCode',
-                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                 ),
@@ -432,49 +487,65 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             if (_role == 'traveler') ...[
                               TextField(
                                 controller: _country,
+                                style: const TextStyle(color: Colors.black),
+                                cursorColor: Colors.black,
                                 decoration: const InputDecoration(
                                   labelText: 'Country of Residence',
                                   filled: true,
                                   fillColor: Colors.white,
+                                  labelStyle: TextStyle(color: Colors.black54),
                                 ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 controller: _address,
+                                style: const TextStyle(color: Colors.black),
+                                cursorColor: Colors.black,
                                 decoration: const InputDecoration(
                                   labelText: 'Permanent Address',
                                   filled: true,
                                   fillColor: Colors.white,
+                                  labelStyle: TextStyle(color: Colors.black54),
                                 ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 controller: _passport,
+                                style: const TextStyle(color: Colors.black),
+                                cursorColor: Colors.black,
                                 decoration: const InputDecoration(
                                   labelText: 'Passport Number',
                                   filled: true,
                                   fillColor: Colors.white,
+                                  labelStyle: TextStyle(color: Colors.black54),
                                 ),
                               ),
                               const SizedBox(height: 10),
                             ],
                             DropdownButtonFormField<String>(
                               initialValue: _role,
+                              style: const TextStyle(color: Colors.black),
                               decoration: const InputDecoration(
                                 labelText: 'Role',
                                 filled: true,
                                 fillColor: Colors.white,
+                                labelStyle: TextStyle(color: Colors.black54),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 'client', child: Text('Client')),
-                                DropdownMenuItem(value: 'traveler', child: Text('Traveler')),
+                                DropdownMenuItem(
+                                    value: 'client', child: Text('Client')),
+                                DropdownMenuItem(
+                                    value: 'traveler', child: Text('Traveler')),
                               ],
-                              onChanged: (v) => setState(() => _role = v ?? 'client'),
+                              onChanged: (v) =>
+                                  setState(() => _role = v ?? 'client'),
                             ),
                             const SizedBox(height: 12),
                           ],
                           if (_error != null)
-                            Text(_error!, style: const TextStyle(color: Color(0xFFFFD2D2))),
+                            Text(_error!,
+                                style:
+                                    const TextStyle(color: Color(0xFFFFD2D2))),
                           const SizedBox(height: 6),
                           FilledButton(
                             onPressed: _loading
@@ -489,7 +560,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 ? const SizedBox(
                                     width: 16,
                                     height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : Text(isRegister ? 'Create Account' : 'Login'),
                           ),
@@ -518,9 +590,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               if (singleColumn) {
                                 return Column(
                                   children: [
-                                    SizedBox(width: double.infinity, child: googleButton),
+                                    SizedBox(
+                                        width: double.infinity,
+                                        child: googleButton),
                                     const SizedBox(height: 8),
-                                    SizedBox(width: double.infinity, child: appleButton),
+                                    SizedBox(
+                                        width: double.infinity,
+                                        child: appleButton),
                                   ],
                                 );
                               }
@@ -576,7 +652,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         clientId: webClient.isEmpty ? null : webClient,
       );
     }
-    if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
       return GoogleSignIn(
         scopes: const ['openid', 'email', 'profile'],
         clientId: iosClient.isEmpty ? null : iosClient,
