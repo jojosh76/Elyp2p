@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"p2p-delivery/backend/internal/domain"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
-	"p2p-delivery/backend/internal/domain"
 )
 
 type PostgresStore struct {
@@ -523,20 +524,16 @@ func (s *PostgresStore) CreateMatch(in domain.Match) (domain.Match, error) {
 	if !packageOK {
 		return domain.Match{}, errors.New("package must pass verification before match")
 	}
-	var duplicate bool
-	if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM matches WHERE listing_id = $1::uuid AND request_id = $2::uuid)`, in.ListingID, in.RequestID).Scan(&duplicate); err != nil {
-		return domain.Match{}, err
-	}
-	if duplicate {
-		return domain.Match{}, errors.New("a match already exists for this request and listing")
-	}
-
 	const q = `
 		INSERT INTO matches (listing_id, request_id, agreed_price, estimated_delivery_at, status)
 		VALUES ($1::uuid,$2::uuid,$3,$4,'matched')
+		ON CONFLICT (listing_id, request_id) DO NOTHING
 		RETURNING id::text, estimated_delivery_at, status, created_at
 	`
 	err = s.db.QueryRow(q, in.ListingID, in.RequestID, in.AgreedPrice, in.EstimatedDeliveryAt).Scan(&in.ID, &in.EstimatedDeliveryAt, &in.Status, &in.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Match{}, errors.New("a match already exists for this request and listing")
+	}
 	if err != nil {
 		return domain.Match{}, err
 	}

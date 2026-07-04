@@ -15,8 +15,6 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    ndkVersion = "28.2.13676358"  // ← Ligne ajoutée avec succès
-
     namespace = "com.example.p2p_delivery_mobile"
     compileSdk = flutter.compileSdkVersion
 

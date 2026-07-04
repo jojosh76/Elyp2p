@@ -38,6 +38,45 @@ func TestAdminEndpointDeniedForClient(t *testing.T) {
 	}
 }
 
+func TestRegisterAdminEmailIsPromotedToAdmin(t *testing.T) {
+	srv, _, am := newTestServer(2, 2)
+	body := map[string]any{
+		"email":                "admin@adminelysian.com",
+		"password":             "Admin#12345",
+		"full_name":            "Admin User",
+		"role":                 "client",
+		"phone":                "+14155550100",
+		"permanent_address":    "1 Admin Street",
+		"passport_number":      "A1234567",
+		"country_of_residence": "US",
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 got %d body=%s", rr.Code, rr.Body.String())
+	}
+	var out struct {
+		User  domain.User `json:"user"`
+		Token string      `json:"token"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if out.User.Role != domain.RoleAdmin {
+		t.Fatalf("expected role admin from admin email, got %s", out.User.Role)
+	}
+	if _, err := am.Parse(out.Token); err != nil {
+		t.Fatalf("expected valid token for admin user: %v", err)
+	}
+	assertStatus(t, srv, http.MethodGet, "/v1/admin/users", out.Token, nil, http.StatusOK)
+}
+
 func TestLoginAndOTPLockouts(t *testing.T) {
 	srv, repo, _ := newTestServer(2, 2)
 	client := mustCreateUser(t, repo, domain.User{

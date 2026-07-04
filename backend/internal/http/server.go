@@ -253,6 +253,14 @@ func (s *Server) isTokenRevoked(token string) bool {
 	return false
 }
 
+func isAdminEmail(email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return false
+	}
+	return strings.HasSuffix(email, "@adminelysian.com")
+}
+
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email              string `json:"email"`
@@ -282,6 +290,12 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	if role != domain.RoleClient && role != domain.RoleTraveler && role != domain.RoleAdmin {
 		writeErr(w, http.StatusBadRequest, "role must be client, traveler or admin")
 		return
+	}
+	if isAdminEmail(in.Email) {
+		role = domain.RoleAdmin
+	}
+	if role == domain.RoleAdmin {
+		in.Role = string(domain.RoleAdmin)
 	}
 	in.Phone = strings.TrimSpace(in.Phone)
 	in.PermanentAddress = strings.TrimSpace(in.PermanentAddress)
@@ -358,6 +372,9 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.clearAuthFailures(s.loginAttempts, "login:"+emailKey)
+	if isAdminEmail(user.Email) {
+		user.Role = domain.RoleAdmin
+	}
 	if user.Role == domain.RoleClient {
 		s.writeOTPChallenge(w, user, "login")
 		return
