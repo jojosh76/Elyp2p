@@ -37,10 +37,10 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: 🐹 Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -67,11 +67,9 @@ jobs:
           JWT_SECRET: "ci-test-secret-not-for-production"
 
       - name: 🏗️  Build binaire
-        env:
-          GITHUB_SHA: ${{ github.sha }}
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-          go build -ldflags="-s -w -X main.Version=$GITHUB_SHA" \
+          go build -ldflags="-s -w -X main.Version=${{ github.sha }}" \
           -o /tmp/api ./cmd/api
           echo "✅ Build OK — $(du -sh /tmp/api | cut -f1)"
 
@@ -87,10 +85,10 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: 🐦 Setup Flutter
-        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a7483daf7b4d6 # v2.18.0
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: "3.44.4"
@@ -138,10 +136,10 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: 🔑 Login to GitHub Container Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -149,7 +147,7 @@ jobs:
 
       - name: 🏷️  Docker metadata
         id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbea8a986b47c609bc2f8b553571 # v5.7.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -158,11 +156,11 @@ jobs:
             type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
 
       - name: 🏗️  Setup Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd2f61d51a572a76f47d4a82a42a5c # v3.10.0
+        uses: docker/setup-buildx-action@v3
 
       - name: 🐳 Build & Push image
         id: push
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        uses: docker/build-push-action@v5
         with:
           context: ./backend
           dockerfile: ./backend/Dockerfile
@@ -175,16 +173,12 @@ jobs:
             VERSION=${{ github.sha }}
 
       - name: 📋 Image summary
-        env:
-          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
-          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
-          COMMIT_SHA: ${{ github.sha }}
         run: |
           echo "### 🐳 Docker Image Pushed" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tags**: $IMAGE_TAGS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Digest**: $IMAGE_DIGEST" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: $COMMIT_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest**: ${{ steps.push.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
   # ══════════════════════════════════════════════════════════════════════════════
   # JOB 4 — Build APK Flutter release
@@ -197,17 +191,17 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: 🐦 Setup Flutter
-        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a7483daf7b4d6 # v2.18.0
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: "3.44.4"
           cache: true
 
       - name: ☕ Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71c4e7bc9ada1a # v4.7.1
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -255,7 +249,7 @@ jobs:
           ls -lh build/app/outputs/flutter-apk/
 
       - name: 📤 Upload APK artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: elysian-flee-${{ github.sha }}.apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
@@ -285,42 +279,29 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: 🔑 Setup SSH agent
-        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: 🌐 Known hosts
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
       - name: 📋 Test connexion SSH
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: ssh "$DEPLOY_USER@$DEPLOY_HOST" "echo '✅ SSH OK'"
+        run: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH OK'"
 
       - name: 📤 Copier docker-compose
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           scp deploy/docker-compose.external-test.yml \
-            "$DEPLOY_USER@$DEPLOY_HOST:/app/elysian-flee/docker-compose.yml"
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/app/elysian-flee/docker-compose.yml
 
       - name: 🔑 Login Docker sur le serveur
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REGISTRY_URL: ${{ env.REGISTRY }}
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
-            "echo $REGISTRY_TOKEN | docker login $REGISTRY_URL -u $REGISTRY_USER --password-stdin"
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "echo ${{ secrets.GITHUB_TOKEN }} | \
+             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
 
       - name: 🚀 Déployer
         env:
@@ -328,11 +309,11 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           FULL_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash << ENDSSH
+          ssh $DEPLOY_USER@$DEPLOY_HOST bash << ENDSSH
             set -e
             cd /app/elysian-flee
-            echo "🔄 Pull image..."
-            docker pull "$FULL_IMAGE"
+            echo "🔄 Pull image $FULL_IMAGE..."
+            docker pull $FULL_IMAGE
             echo "🔄 Restart API..."
             docker compose up -d --no-deps --pull always api
             echo "⏳ Attente démarrage (30s)..."
@@ -358,24 +339,20 @@ jobs:
 
       - name: 📋 Résumé déploiement
         if: always()
-        env:
-          COMMIT_SHA: ${{ github.sha }}
-          ACTOR: ${{ github.actor }}
-          SERVER: ${{ secrets.DEPLOY_HOST }}
         run: |
           echo "### 🚀 Déploiement Production" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`$COMMIT_SHA\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Heure**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Par**: @$ACTOR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
       - name: 🔔 Slack si échec
         if: failure()
-        uses: slackapi/slack-github-action@b0fa283ad8ffa605d0767df6d3cc1d47bbd40f71 # v1.27.0
+        uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "❌ *Deploy FAILED* — Elysian Flee"
+              "text": "❌ *Deploy FAILED* — Elysian Flee\n*Commit*: `${{ github.sha }}`\n*Par*: @${{ github.actor }}\n*Lien*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
