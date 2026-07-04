@@ -1,4 +1,5 @@
 name: 🔁 Rollback — Production
+
 # Déclenché manuellement depuis l'onglet Actions de GitHub
 on:
   workflow_dispatch:
@@ -11,53 +12,70 @@ on:
         description: "Raison du rollback"
         required: true
         type: string
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
+
 jobs:
   rollback:
-    name: 🔁 Rollback vers ${{ inputs.image_tag }}
+    # Fix SonarCloud Blocker: ne pas utiliser inputs dans le nom du job
+    # (évite l'injection de script via le titre du job)
+    name: 🔁 Rollback — Production
     runs-on: ubuntu-latest
+
     environment:
       name: production
       url: https://api.elysian-flee.com
+
     steps:
       - name: 📋 Log rollback intention
-        run: |
-          echo "## 🔁 Rollback demandé" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag cible**: \`${{ inputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Raison**: ${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Déclenché par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-      - name: 🔑 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-      - name: 🌐 Known hosts
-        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-      - name: 🔁 Rollback sur le serveur
+        # Fix SonarCloud Blocker: inputs passés via env, pas directement dans run
         env:
           TARGET_TAG: ${{ inputs.image_tag }}
-          REGISTRY: ghcr.io
-          IMAGE_NAME: ${{ github.repository_owner }}/elysian-flee-api
+          ROLLBACK_REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << ENDSSH
+          echo "## 🔁 Rollback demandé" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag cible**: \`$TARGET_TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Raison**: $ROLLBACK_REASON" >> $GITHUB_STEP_SUMMARY
+          echo "- **Déclenché par**: @$ACTOR" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔑 Setup SSH
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: 🌐 Known hosts
+        # Fix SonarCloud Medium: secret passé via env
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: 🔁 Rollback sur le serveur
+        # Fix SonarCloud Blocker: inputs et secrets passés via env
+        env:
+          TARGET_TAG: ${{ inputs.image_tag }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          FULL_IMAGE="$REGISTRY/$REPO_OWNER/elysian-flee-api:$TARGET_TAG"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash << ENDSSH
             set -e
             cd /app/elysian-flee
-            TARGET_IMAGE="$REGISTRY/$IMAGE_NAME:$TARGET_TAG"
-            echo "🔄 Pull image de rollback: \$TARGET_IMAGE"
-            docker pull \$TARGET_IMAGE
+            echo "🔄 Pull image de rollback: $FULL_IMAGE"
+            docker pull "$FULL_IMAGE"
             echo "🔁 Redémarrage avec l'image rollback..."
-            API_IMAGE=\$TARGET_IMAGE docker compose up -d --no-deps api
+            docker compose up -d --no-deps api
             sleep 20
             curl -sf http://localhost:8081/healthz || (echo "❌ Rollback health check FAILED" && exit 1)
-            echo "✅ Rollback OK — image: \$TARGET_IMAGE"
+            echo "✅ Rollback OK"
           ENDSSH
+
       - name: ✅ Vérification post-rollback
         run: |
           HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
             https://api.elysian-flee.com/healthz || echo "000")
           echo "Health check HTTP: $HTTP_CODE"
           [ "$HTTP_CODE" = "200" ] || exit 1
-
-
-voila mon ci-cd et roolback apportes y les modifactions plus haut pour qu'elles soient fonctionlles
