@@ -67,9 +67,11 @@ jobs:
           JWT_SECRET: "ci-test-secret-not-for-production"
 
       - name: 🏗️  Build binaire
+        env:
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-          go build -ldflags="-s -w -X main.Version=${{ github.sha }}" \
+          go build -ldflags="-s -w -X main.Version=$COMMIT_SHA" \
           -o /tmp/api ./cmd/api
           echo "✅ Build OK — $(du -sh /tmp/api | cut -f1)"
 
@@ -173,12 +175,16 @@ jobs:
             VERSION=${{ github.sha }}
 
       - name: 📋 Image summary
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           echo "### 🐳 Docker Image Pushed" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Digest**: ${{ steps.push.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: $IMAGE_TAGS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest**: $IMAGE_DIGEST" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: $COMMIT_SHA" >> $GITHUB_STEP_SUMMARY
 
   # ══════════════════════════════════════════════════════════════════════════════
   # JOB 4 — Build APK Flutter release
@@ -287,21 +293,33 @@ jobs:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: 🌐 Known hosts
-        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: 📋 Test connexion SSH
-        run: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH OK'"
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh "$DEPLOY_USER@$DEPLOY_HOST" "echo '✅ SSH OK'"
 
       - name: 📤 Copier docker-compose
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           scp deploy/docker-compose.external-test.yml \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/app/elysian-flee/docker-compose.yml
+            "$DEPLOY_USER@$DEPLOY_HOST:/app/elysian-flee/docker-compose.yml"
 
       - name: 🔑 Login Docker sur le serveur
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "echo ${{ secrets.GITHUB_TOKEN }} | \
-             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "echo $REGISTRY_TOKEN | docker login ${{ env.REGISTRY }} -u $REGISTRY_USER --password-stdin"
 
       - name: 🚀 Déployer
         env:
@@ -309,18 +327,13 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           FULL_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          ssh $DEPLOY_USER@$DEPLOY_HOST bash << ENDSSH
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash << ENDSSH
             set -e
             cd /app/elysian-flee
-            echo "🔄 Pull image $FULL_IMAGE..."
-            docker pull $FULL_IMAGE
-            echo "🔄 Restart API..."
+            docker pull "$FULL_IMAGE"
             docker compose up -d --no-deps --pull always api
-            echo "⏳ Attente démarrage (30s)..."
             sleep 30
-            echo "🏥 Health check..."
             curl -sf http://localhost:8081/healthz || (echo "❌ FAILED" && exit 1)
-            echo "🧹 Cleanup..."
             docker image prune -f
             echo "✅ Déploiement OK"
           ENDSSH
@@ -339,12 +352,15 @@ jobs:
 
       - name: 📋 Résumé déploiement
         if: always()
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
         run: |
           echo "### 🚀 Déploiement Production" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`$COMMIT_SHA\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Heure**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Par**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Par**: @$ACTOR" >> $GITHUB_STEP_SUMMARY
 
       - name: 🔔 Slack si échec
         if: failure()
