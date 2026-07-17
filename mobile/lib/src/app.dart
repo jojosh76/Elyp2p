@@ -16,7 +16,7 @@ class _P2PDeliveryAppState extends State<P2PDeliveryApp> {
   final ApiClient _api = ApiClient(
     baseUrl: const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'http://localhost:8080',
+      defaultValue: 'https://localhost:8080',
     ),
   );
   bool _ready = false;

@@ -7,7 +7,8 @@ ThemeData buildAppTheme() {
   const accent = Color(0xFF00E5FF);
   const deep = Color(0xFF071427);
   final base = ThemeData.from(
-      colorScheme: ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark),
+      colorScheme:
+          ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark),
       useMaterial3: true);
 
   final textTheme = GoogleFonts.poppinsTextTheme(base.textTheme).apply(
@@ -61,17 +62,21 @@ ThemeData buildAppTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white.withValues(alpha: 0.04),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.04)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: accent.withValues(alpha: 0.9), width: 1.8),
+        borderSide:
+            BorderSide(color: accent.withValues(alpha: 0.9), width: 1.8),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)), // ignore: prefer_const_constructors
+      hintStyle: TextStyle(
+          color: Colors.white
+              .withValues(alpha: 0.6)), // ignore: prefer_const_constructors
     ),
     cardTheme: base.cardTheme.copyWith(
       elevation: 10,
@@ -79,7 +84,8 @@ ThemeData buildAppTheme() {
       margin: const EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
-    dialogTheme: base.dialogTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    dialogTheme: base.dialogTheme.copyWith(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
     bottomNavigationBarTheme: base.bottomNavigationBarTheme.copyWith(
       backgroundColor: deep,
       selectedItemColor: accent,
@@ -93,23 +99,53 @@ ThemeData buildDarkTheme() {
   const accent = Color(0xFF7C3CFF);
   const deep = Color(0xFF050812);
   final base = ThemeData.from(
-      colorScheme: ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark),
+      colorScheme:
+          ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark),
       useMaterial3: true);
-  final textTheme = GoogleFonts.poppinsTextTheme(base.textTheme).apply(bodyColor: Colors.white, displayColor: Colors.white);
+  final textTheme = GoogleFonts.poppinsTextTheme(base.textTheme)
+      .apply(bodyColor: Colors.white, displayColor: Colors.white);
 
   return base.copyWith(
     scaffoldBackgroundColor: deep,
     textTheme: textTheme,
-    appBarTheme: base.appBarTheme.copyWith(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0),
-    inputDecorationTheme: base.inputDecorationTheme.copyWith(filled: true, fillColor: Colors.white.withValues(alpha: 0.03)),
+    appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0),
+    inputDecorationTheme: base.inputDecorationTheme.copyWith(
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.03),
+      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.65)),
+      floatingLabelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+      prefixIconColor: Colors.white.withValues(alpha: 0.85),
+    ),
     cardTheme: base.cardTheme.copyWith(
       color: Colors.white.withValues(alpha: 0.03),
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
-    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, elevation: 10, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)))),
-    elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, elevation: 10, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)))),
-    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.white.withValues(alpha: 0.06)), foregroundColor: Colors.white)),
-    bottomNavigationBarTheme: base.bottomNavigationBarTheme.copyWith(backgroundColor: deep, selectedItemColor: accent, unselectedItemColor: Colors.white.withValues(alpha: 0.6)),
+    filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: Colors.white,
+            elevation: 10,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)))),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: Colors.white,
+            elevation: 10,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)))),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+            foregroundColor: Colors.white)),
+    bottomNavigationBarTheme: base.bottomNavigationBarTheme.copyWith(
+        backgroundColor: deep,
+        selectedItemColor: accent,
+        unselectedItemColor: Colors.white.withValues(alpha: 0.6)),
   );
 }

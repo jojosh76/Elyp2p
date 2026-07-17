@@ -333,261 +333,276 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ResponsivePage(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text('My Work',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 4),
-            const Text(
-                'Manage matching and payment steps using selections instead of IDs.'),
-            const SizedBox(height: 12),
-            if (_loading) const Center(child: CircularProgressIndicator()),
-            if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            if (canCreateMatch)
-              FancyCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('1) Create Match',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      if (_requestOptions().isEmpty)
-                        const Text('No requests available yet.')
-                      else
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  onSurface: Colors.white,
+                  onSurfaceVariant: Colors.white.withValues(alpha: 0.75),
+                ),
+            inputDecorationTheme:
+                Theme.of(context).inputDecorationTheme.copyWith(
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintStyle: const TextStyle(color: Colors.white60),
+                    ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('My Work',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 4),
+              const Text(
+                  'Manage matching and payment steps using selections instead of IDs.'),
+              const SizedBox(height: 12),
+              if (_loading) const Center(child: CircularProgressIndicator()),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+              if (canCreateMatch)
+                FancyCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('1) Create Match',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        if (_requestOptions().isEmpty)
+                          const Text('No requests available yet.')
+                        else
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedRequestId.isEmpty
+                                ? null
+                                : _selectedRequestId,
+                            items: _requestOptions()
+                                .map((e) => (e as Map).cast<String, dynamic>())
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: (e['id'] ?? '').toString(),
+                                      child: Text(_routeLabel(e)),
+                                    ))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedRequestId = v ?? ''),
+                            decoration: InputDecoration(
+                                labelText: _requestDropdownLabel()),
+                          ),
+                        const SizedBox(height: 8),
+                        if (_listingOptions().isEmpty)
+                          const Text('No listings available yet.')
+                        else
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedListingId.isEmpty
+                                ? null
+                                : _selectedListingId,
+                            items: _listingOptions()
+                                .map((e) => (e as Map).cast<String, dynamic>())
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: (e['id'] ?? '').toString(),
+                                      child: Text(_routeLabel(e)),
+                                    ))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedListingId = v ?? ''),
+                            decoration: InputDecoration(
+                                labelText: _listingDropdownLabel()),
+                          ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _agreedPrice,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Agreed Price'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                            onPressed: _createMatch,
+                            child: const Text('Create Match')),
+                      ],
+                    ),
+                  ),
+                ),
+              if (canManagePayments)
+                FancyCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('2) Create Escrow',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          initialValue: _selectedRequestId.isEmpty
+                          initialValue: _selectedMatchId.isEmpty
                               ? null
-                              : _selectedRequestId,
-                          items: _requestOptions()
+                              : _selectedMatchId,
+                          items: _myMatches
                               .map((e) => (e as Map).cast<String, dynamic>())
                               .map((e) => DropdownMenuItem<String>(
                                     value: (e['id'] ?? '').toString(),
-                                    child: Text(_routeLabel(e)),
+                                    child: Text(_matchLabel(e)),
                                   ))
                               .toList(),
                           onChanged: (v) =>
-                              setState(() => _selectedRequestId = v ?? ''),
-                          decoration: InputDecoration(
-                              labelText: _requestDropdownLabel()),
+                              setState(() => _selectedMatchId = v ?? ''),
+                          decoration: const InputDecoration(labelText: 'Match'),
                         ),
-                      const SizedBox(height: 8),
-                      if (_listingOptions().isEmpty)
-                        const Text('No listings available yet.')
-                      else
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _escrowAmount,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Escrow Amount'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                            onPressed: _createEscrow,
+                            child: const Text('Create Escrow')),
+                      ],
+                    ),
+                  ),
+                ),
+              if (canManagePayments)
+                FancyCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('3) Fund or Release Escrow',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          initialValue: _selectedListingId.isEmpty
+                          initialValue: _selectedEscrowId.isEmpty
                               ? null
-                              : _selectedListingId,
-                          items: _listingOptions()
+                              : _selectedEscrowId,
+                          items: _myEscrows
                               .map((e) => (e as Map).cast<String, dynamic>())
                               .map((e) => DropdownMenuItem<String>(
                                     value: (e['id'] ?? '').toString(),
-                                    child: Text(_routeLabel(e)),
+                                    child: Text(_escrowLabel(e)),
                                   ))
                               .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedListingId = v ?? ''),
-                          decoration: InputDecoration(
-                              labelText: _listingDropdownLabel()),
+                          onChanged: (v) async {
+                            setState(() => _selectedEscrowId = v ?? '');
+                            await _refreshReleaseEligibility();
+                          },
+                          decoration:
+                              const InputDecoration(labelText: 'Escrow'),
                         ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _agreedPrice,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Agreed Price'),
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton(
-                          onPressed: _createMatch,
-                          child: const Text('Create Match')),
-                    ],
-                  ),
-                ),
-              ),
-            if (canManagePayments)
-              FancyCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('2) Create Escrow',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue:
-                            _selectedMatchId.isEmpty ? null : _selectedMatchId,
-                        items: _myMatches
-                            .map((e) => (e as Map).cast<String, dynamic>())
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: (e['id'] ?? '').toString(),
-                                  child: Text(_matchLabel(e)),
-                                ))
-                            .toList(),
-                        onChanged: (v) =>
-                            setState(() => _selectedMatchId = v ?? ''),
-                        decoration: const InputDecoration(labelText: 'Match'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _escrowAmount,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Escrow Amount'),
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton(
-                          onPressed: _createEscrow,
-                          child: const Text('Create Escrow')),
-                    ],
-                  ),
-                ),
-              ),
-            if (canManagePayments)
-              FancyCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('3) Fund or Release Escrow',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedEscrowId.isEmpty
-                            ? null
-                            : _selectedEscrowId,
-                        items: _myEscrows
-                            .map((e) => (e as Map).cast<String, dynamic>())
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: (e['id'] ?? '').toString(),
-                                  child: Text(_escrowLabel(e)),
-                                ))
-                            .toList(),
-                        onChanged: (v) async {
-                          setState(() => _selectedEscrowId = v ?? '');
-                          await _refreshReleaseEligibility();
-                        },
-                        decoration: const InputDecoration(labelText: 'Escrow'),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _releaseHint,
-                        style: TextStyle(
-                          color: _canReleaseSelectedEscrow
-                              ? Colors.green.shade700
-                              : Colors.orange.shade800,
-                          fontSize: 12,
+                        const SizedBox(height: 8),
+                        Text(
+                          _releaseHint,
+                          style: TextStyle(
+                            color: _canReleaseSelectedEscrow
+                                ? Colors.green.shade700
+                                : Colors.orange.shade800,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: _selectedEscrowId.isEmpty
-                              ? null
-                              : _refreshReleaseEligibility,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Refresh delivery status'),
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _selectedEscrowId.isEmpty
+                                ? null
+                                : _refreshReleaseEligibility,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh delivery status'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton(
-                              onPressed: _fundEscrow,
-                              child: const Text('Fund')),
-                          OutlinedButton(
-                              onPressed: _disputeEscrow,
-                              child: const Text('Dispute')),
-                          OutlinedButton(
-                              onPressed: _refundEscrow,
-                              child: const Text('Refund')),
-                          if (_canReleaseSelectedEscrow)
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
                             OutlinedButton(
-                                onPressed: _releaseEscrow,
-                                child: const Text('Release')),
-                        ],
+                                onPressed: _fundEscrow,
+                                child: const Text('Fund')),
+                            OutlinedButton(
+                                onPressed: _disputeEscrow,
+                                child: const Text('Dispute')),
+                            OutlinedButton(
+                                onPressed: _refundEscrow,
+                                child: const Text('Refund')),
+                            if (_canReleaseSelectedEscrow)
+                              OutlinedButton(
+                                  onPressed: _releaseEscrow,
+                                  child: const Text('Release')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              const Text('My Requests',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ..._myRequests.asMap().entries.map((entry) {
+                final i = entry.key;
+                final e = entry.value;
+                final x = (e as Map).cast<String, dynamic>();
+                return AnimatedEntry(
+                  delay: Duration(milliseconds: 50 * i),
+                  child: FancyCard(
+                    child: ListTile(
+                      title: Text(_routeLabel(x)),
+                      subtitle: Text(
+                          'Status ${x['status'] ?? ''} | ${x['weight_kg'] ?? 0} kg'),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+              const Text('My Matches',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ..._myMatches.asMap().entries.map((entry) {
+                final i = entry.key;
+                final e = entry.value;
+                final x = (e as Map).cast<String, dynamic>();
+                final eta = (x['estimated_delivery_at'] ?? '').toString();
+                return AnimatedEntry(
+                  delay: Duration(milliseconds: 60 * i),
+                  child: FancyCard(
+                    child: ListTile(
+                      title: Text('Agreed Price ${x['agreed_price'] ?? 0}'),
+                      subtitle: Text(
+                        eta.isEmpty
+                            ? 'Status ${x['status'] ?? ''}'
+                            : 'Status ${x['status'] ?? ''} | ETA $eta',
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            const SizedBox(height: 8),
-            const Text('My Requests',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._myRequests.asMap().entries.map((entry) {
-              final i = entry.key;
-              final e = entry.value;
-              final x = (e as Map).cast<String, dynamic>();
-              return AnimatedEntry(
-                delay: Duration(milliseconds: 50 * i),
-                child: FancyCard(
-                  child: ListTile(
-                    title: Text(_routeLabel(x)),
-                    subtitle: Text(
-                        'Status ${x['status'] ?? ''} | ${x['weight_kg'] ?? 0} kg'),
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-            const Text('My Matches',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._myMatches.asMap().entries.map((entry) {
-              final i = entry.key;
-              final e = entry.value;
-              final x = (e as Map).cast<String, dynamic>();
-              final eta = (x['estimated_delivery_at'] ?? '').toString();
-              return AnimatedEntry(
-                delay: Duration(milliseconds: 60 * i),
-                child: FancyCard(
-                  child: ListTile(
-                    title: Text('Agreed Price ${x['agreed_price'] ?? 0}'),
-                    subtitle: Text(
-                      eta.isEmpty
-                          ? 'Status ${x['status'] ?? ''}'
-                          : 'Status ${x['status'] ?? ''} | ETA $eta',
                     ),
                   ),
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-            const Text('My Escrows',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._myEscrows.asMap().entries.map((entry) {
-              final i = entry.key;
-              final e = entry.value;
-              final x = (e as Map).cast<String, dynamic>();
-              final matchID = (x['match_id'] ?? '').toString();
-              final parties = _matchPartiesLabel(matchID);
-              final payout = (x['payout_status'] ?? '').toString();
-              return AnimatedEntry(
-                delay: Duration(milliseconds: 70 * i),
-                child: FancyCard(
-                  child: ListTile(
-                    title: Text('${x['amount'] ?? 0} ${x['currency'] ?? ''}'),
-                    subtitle: Text(
-                        'Status ${x['status'] ?? ''} | Commission ${x['commission_amount'] ?? 0}${payout.isEmpty ? '' : ' | payout $payout'}${parties.isEmpty ? '' : '\n$parties'}'),
-                    trailing: IconButton(
-                      tooltip: 'Delete escrow',
-                      onPressed: () =>
-                          _deleteEscrow((x['id'] ?? '').toString()),
-                      icon: const Icon(Icons.delete_outline),
+                );
+              }),
+              const SizedBox(height: 8),
+              const Text('My Escrows',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ..._myEscrows.asMap().entries.map((entry) {
+                final i = entry.key;
+                final e = entry.value;
+                final x = (e as Map).cast<String, dynamic>();
+                final matchID = (x['match_id'] ?? '').toString();
+                final parties = _matchPartiesLabel(matchID);
+                final payout = (x['payout_status'] ?? '').toString();
+                return AnimatedEntry(
+                  delay: Duration(milliseconds: 70 * i),
+                  child: FancyCard(
+                    child: ListTile(
+                      title: Text('${x['amount'] ?? 0} ${x['currency'] ?? ''}'),
+                      subtitle: Text(
+                          'Status ${x['status'] ?? ''} | Commission ${x['commission_amount'] ?? 0}${payout.isEmpty ? '' : ' | payout $payout'}${parties.isEmpty ? '' : '\n$parties'}'),
+                      trailing: IconButton(
+                        tooltip: 'Delete escrow',
+                        onPressed: () =>
+                            _deleteEscrow((x['id'] ?? '').toString()),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
                     ),
                   ),
-                ),
-              );
-            }),
-          ],
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );

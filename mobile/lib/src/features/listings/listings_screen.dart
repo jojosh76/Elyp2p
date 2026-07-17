@@ -173,84 +173,111 @@ class _ListingsScreenState extends State<ListingsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ResponsivePage(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (canCreateListing) ...[
-              const Text('Create Traveler Listing',
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  onSurface: Colors.white,
+                  onSurfaceVariant: Colors.white.withValues(alpha: 0.75),
+                ),
+            inputDecorationTheme:
+                Theme.of(context).inputDecorationTheme.copyWith(
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintStyle: const TextStyle(color: Colors.white60),
+                    ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (canCreateListing) ...[
+                const Text('Create Traveler Listing',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: _origin,
+                    decoration: const InputDecoration(labelText: 'Origin')),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: _destination,
+                    decoration:
+                        const InputDecoration(labelText: 'Destination')),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _destinationType,
+                  items: const [
+                    DropdownMenuItem(value: 'city', child: Text('City')),
+                    DropdownMenuItem(value: 'country', child: Text('Country')),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _destinationType = v ?? 'city'),
+                  decoration:
+                      const InputDecoration(labelText: 'Destination Type'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: _maxWeight,
+                    decoration:
+                        const InputDecoration(labelText: 'Max Weight (kg)')),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: _pricePerKg,
+                    decoration:
+                        const InputDecoration(labelText: 'Price per kg')),
+                const SizedBox(height: 10),
+                FilledButton(
+                    onPressed: _create, child: const Text('Publish Listing')),
+                const Divider(height: 28),
+              ] else ...[
+                const Text(
+                  'Traveler listings are created by traveler accounts. As a client, use Requests tab to create your delivery request.',
+                ),
+                const Divider(height: 28),
+              ],
+              const Text('Available Listings',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              TextField(
-                  controller: _origin,
-                  decoration: const InputDecoration(labelText: 'Origin')),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: _destination,
-                  decoration: const InputDecoration(labelText: 'Destination')),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _destinationType,
-                items: const [
-                  DropdownMenuItem(value: 'city', child: Text('City')),
-                  DropdownMenuItem(value: 'country', child: Text('Country')),
-                ],
-                onChanged: (v) =>
-                    setState(() => _destinationType = v ?? 'city'),
-                decoration:
-                    const InputDecoration(labelText: 'Destination Type'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: _maxWeight,
-                  decoration:
-                      const InputDecoration(labelText: 'Max Weight (kg)')),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: _pricePerKg,
-                  decoration: const InputDecoration(labelText: 'Price per kg')),
-              const SizedBox(height: 10),
-              FilledButton(
-                  onPressed: _create, child: const Text('Publish Listing')),
-              const Divider(height: 28),
-            ] else ...[
-              const Text(
-                'Traveler listings are created by traveler accounts. As a client, use Requests tab to create your delivery request.',
-              ),
-              const Divider(height: 28),
+              if (_loading) const Center(child: CircularProgressIndicator()),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+              ..._items.map((item) {
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: ((item['traveler_avatar_url'] ?? '')
+                              .toString()
+                              .isNotEmpty)
+                          ? NetworkImage(
+                              (item['traveler_avatar_url'] ?? '').toString())
+                          : null,
+                      child: ((item['traveler_avatar_url'] ?? '')
+                              .toString()
+                              .isEmpty)
+                          ? Text(
+                              ((item['traveler_name'] ?? 'T')
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty
+                                      ? (item['traveler_name'] ?? 'T')
+                                          .toString()
+                                          .trim()[0]
+                                      : 'T')
+                                  .toUpperCase(),
+                            )
+                          : null,
+                    ),
+                    title: Text('${item['origin']} -> ${item['destination']}'),
+                    subtitle: Text(
+                      'Traveler: ${item['traveler_name'] ?? 'Unknown'}\nType: ${item['destination_type']} | Weight: ${item['max_weight_kg']}kg | Price/kg: ${item['price_per_kg']}',
+                    ),
+                    onTap: widget.api.role == 'client' ||
+                            widget.api.role == 'admin'
+                        ? () =>
+                            _onListingTap((item as Map).cast<String, dynamic>())
+                        : null,
+                  ),
+                );
+              }),
             ],
-            const Text('Available Listings',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            if (_loading) const Center(child: CircularProgressIndicator()),
-            if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            ..._items.map((item) {
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: ((item['traveler_avatar_url'] ?? '').toString().isNotEmpty)
-                        ? NetworkImage((item['traveler_avatar_url'] ?? '').toString())
-                        : null,
-                    child: ((item['traveler_avatar_url'] ?? '').toString().isEmpty)
-                        ? Text(
-                            ((item['traveler_name'] ?? 'T').toString().trim().isNotEmpty
-                                    ? (item['traveler_name'] ?? 'T').toString().trim()[0]
-                                    : 'T')
-                                .toUpperCase(),
-                          )
-                        : null,
-                  ),
-                  title: Text('${item['origin']} -> ${item['destination']}'),
-                  subtitle: Text(
-                    'Traveler: ${item['traveler_name'] ?? 'Unknown'}\nType: ${item['destination_type']} | Weight: ${item['max_weight_kg']}kg | Price/kg: ${item['price_per_kg']}',
-                  ),
-                  onTap: widget.api.role == 'client' || widget.api.role == 'admin'
-                      ? () => _onListingTap((item as Map).cast<String, dynamic>())
-                      : null,
-                ),
-              );
-            }),
-          ],
+          ),
         ),
       ),
     );

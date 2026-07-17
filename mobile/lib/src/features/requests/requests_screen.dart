@@ -105,7 +105,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Request: ${request['origin']} -> ${request['destination']}'),
+              Text(
+                  'Request: ${request['origin']} -> ${request['destination']}'),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: selectedListingID,
@@ -123,7 +124,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 controller: priceCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Agreed Price (USD)'),
+                decoration:
+                    const InputDecoration(labelText: 'Agreed Price (USD)'),
               ),
             ],
           ),
@@ -151,7 +153,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
             (l) => (l['id'] ?? '').toString() == selectedListingID,
             orElse: () => <String, dynamic>{},
           );
-      final estimatedDeliveryAt = (selectedListing['arrival_date'] ?? '').toString();
+      final estimatedDeliveryAt =
+          (selectedListing['arrival_date'] ?? '').toString();
       await widget.api.createMatch(
         listingID: selectedListingID,
         requestID: (request['id'] as String?) ?? '',
@@ -306,288 +309,311 @@ class _RequestsScreenState extends State<RequestsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ResponsivePage(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (canCreateRequest) ...[
-              const Text(
-                'Create Delivery Request',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Fill sender, recipient, and dropoff details carefully. Recipient phone must include country code.',
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Route & Package',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _origin,
-                        decoration: const InputDecoration(labelText: 'Origin'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _destination,
-                        decoration: const InputDecoration(labelText: 'Destination'),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _destinationType,
-                        items: const [
-                          DropdownMenuItem(value: 'city', child: Text('City')),
-                          DropdownMenuItem(value: 'country', child: Text('Country')),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => _destinationType = v ?? 'city'),
-                        decoration:
-                            const InputDecoration(labelText: 'Destination Type'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _weight,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  onSurface: Colors.white,
+                  onSurfaceVariant: Colors.white.withValues(alpha: 0.75),
+                ),
+            inputDecorationTheme:
+                Theme.of(context).inputDecorationTheme.copyWith(
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintStyle: const TextStyle(color: Colors.white60),
+                    ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (canCreateRequest) ...[
+                const Text(
+                  'Create Delivery Request',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Fill sender, recipient, and dropoff details carefully. Recipient phone must include country code.',
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Route & Package',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        decoration: const InputDecoration(labelText: 'Weight (kg)'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _description,
-                        decoration: const InputDecoration(
-                          labelText: 'Package Description',
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _origin,
+                          decoration:
+                              const InputDecoration(labelText: 'Origin'),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _declaredValue,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _destination,
+                          decoration:
+                              const InputDecoration(labelText: 'Destination'),
                         ),
-                        decoration:
-                            const InputDecoration(labelText: 'Declared Value'),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _destinationType,
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'city', child: Text('City')),
+                            DropdownMenuItem(
+                                value: 'country', child: Text('Country')),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _destinationType = v ?? 'city'),
+                          decoration: const InputDecoration(
+                              labelText: 'Destination Type'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _weight,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration:
+                              const InputDecoration(labelText: 'Weight (kg)'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _description,
+                          decoration: const InputDecoration(
+                            labelText: 'Package Description',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _declaredValue,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                              labelText: 'Declared Value'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Recipient Details',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _recipientName,
-                        decoration:
-                            const InputDecoration(labelText: 'Recipient Name'),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                showCountryPicker(
-                                  context: context,
-                                  showPhoneCode: true,
-                                  onSelect: (country) {
-                                    setState(() {
-                                      _recipientCountryName = country.name;
-                                      _recipientCountryCode =
-                                          '+${country.phoneCode}';
-                                    });
-                                  },
-                                );
-                              },
-                              icon: const Icon(Icons.public),
-                              label: Text(_recipientCountryCode),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 5,
-                            child: TextField(
-                              controller: _recipientPhoneLocal,
-                              keyboardType: TextInputType.phone,
-                              inputFormatters: const [_LocalPhoneFormatter()],
-                              decoration: const InputDecoration(
-                                labelText: 'Recipient Phone (local digits)',
-                                hintText: 'e.g. 4155550123',
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Recipient Details',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _recipientName,
+                          decoration: const InputDecoration(
+                              labelText: 'Recipient Name'),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  showCountryPicker(
+                                    context: context,
+                                    showPhoneCode: true,
+                                    onSelect: (country) {
+                                      setState(() {
+                                        _recipientCountryName = country.name;
+                                        _recipientCountryCode =
+                                            '+${country.phoneCode}';
+                                      });
+                                    },
+                                  );
+                                },
+                                icon: const Icon(Icons.public),
+                                label: Text(_recipientCountryCode),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _countryPresets
-                            .map((preset) => ChoiceChip(
-                                  label: Text(
-                                    '${preset.name.split(' ').first} ${preset.code}',
-                                  ),
-                                  selected: _recipientCountryCode == preset.code,
-                                  onSelected: (_) {
-                                    setState(() {
-                                      _recipientCountryCode = preset.code;
-                                      _recipientCountryName = preset.name;
-                                    });
-                                  },
-                                ))
-                            .toList(),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Country: $_recipientCountryName\nFull number sent: ${previewPhone.isEmpty ? '(enter phone)' : previewPhone}\nUse international format with country code (example: +14155550123).',
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 24,
-                            backgroundImage: _imageProviderFor(_recipientPhotoData),
-                            child: _recipientPhotoData.isEmpty
-                                ? const Icon(Icons.person_outline)
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _pickRecipientPhoto,
-                              icon: const Icon(Icons.photo_camera),
-                              label: Text(
-                                _recipientPhotoData.isEmpty
-                                    ? 'Upload Recipient Photo'
-                                    : 'Change Recipient Photo',
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 5,
+                              child: TextField(
+                                controller: _recipientPhoneLocal,
+                                keyboardType: TextInputType.phone,
+                                inputFormatters: const [_LocalPhoneFormatter()],
+                                decoration: const InputDecoration(
+                                  labelText: 'Recipient Phone (local digits)',
+                                  hintText: 'e.g. 4155550123',
+                                ),
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _countryPresets
+                              .map((preset) => ChoiceChip(
+                                    label: Text(
+                                      '${preset.name.split(' ').first} ${preset.code}',
+                                    ),
+                                    selected:
+                                        _recipientCountryCode == preset.code,
+                                    onSelected: (_) {
+                                      setState(() {
+                                        _recipientCountryCode = preset.code;
+                                        _recipientCountryName = preset.name;
+                                      });
+                                    },
+                                  ))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Country: $_recipientCountryName\nFull number sent: ${previewPhone.isEmpty ? '(enter phone)' : previewPhone}\nUse international format with country code (example: +14155550123).',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundImage:
+                                  _imageProviderFor(_recipientPhotoData),
+                              child: _recipientPhotoData.isEmpty
+                                  ? const Icon(Icons.person_outline)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _pickRecipientPhoto,
+                                icon: const Icon(Icons.photo_camera),
+                                label: Text(
+                                  _recipientPhotoData.isEmpty
+                                      ? 'Upload Recipient Photo'
+                                      : 'Change Recipient Photo',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Dropoff',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _dropoffAddress,
+                          minLines: 2,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Precise Dropoff Address',
+                            hintText:
+                                'Street, area, city, nearby landmark, building/floor',
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _dropoffInstructions,
+                          minLines: 2,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Dropoff Instructions',
+                            hintText:
+                                'Who to ask for, call before arrival, gate notes, etc.',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Dropoff',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _dropoffAddress,
-                        minLines: 2,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Precise Dropoff Address',
-                          hintText:
-                              'Street, area, city, nearby landmark, building/floor',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _dropoffInstructions,
-                        minLines: 2,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Dropoff Instructions',
-                          hintText:
-                              'Who to ask for, call before arrival, gate notes, etc.',
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: _submitting ? null : _create,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: const Text('Create Request'),
                 ),
+                const Divider(height: 28),
+              ] else ...[
+                const Text(
+                  'Delivery requests are created by client accounts. As a traveler, publish your trip in Listings.',
+                ),
+                const Divider(height: 28),
+              ],
+              Text(
+                widget.api.role == 'traveler' ? 'Open Requests' : 'My Requests',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: _submitting ? null : _create,
-                icon: _submitting
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                label: const Text('Create Request'),
-              ),
-              const Divider(height: 28),
-            ] else ...[
-              const Text(
-                'Delivery requests are created by client accounts. As a traveler, publish your trip in Listings.',
-              ),
-              const Divider(height: 28),
-            ],
-            Text(
-              widget.api.role == 'traveler' ? 'Open Requests' : 'My Requests',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            if (_loading) const Center(child: CircularProgressIndicator()),
-            if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            ..._items.map((item) {
-              final req = (item as Map).cast<String, dynamic>();
-              final photo = _imageProviderFor(
-                (req['recipient_photo_url'] ?? req['client_avatar_url'] ?? '')
-                    .toString(),
-              );
-              return Card(
-                child: ListTile(
-                  onTap: widget.api.role == 'traveler'
-                      ? () => _matchAsTraveler(req)
-                      : null,
-                  leading: CircleAvatar(
-                    backgroundImage: photo,
-                    child: photo == null
-                        ? Text(
-                            ((req['recipient_name'] ?? req['client_name'] ?? 'C')
-                                        .toString()
-                                        .trim()
-                                        .isNotEmpty
-                                    ? (req['recipient_name'] ??
-                                            req['client_name'] ??
-                                            'C')
-                                        .toString()
-                                        .trim()[0]
-                                    : 'C')
-                                .toUpperCase(),
-                          )
+              const SizedBox(height: 8),
+              if (_loading) const Center(child: CircularProgressIndicator()),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+              ..._items.map((item) {
+                final req = (item as Map).cast<String, dynamic>();
+                final photo = _imageProviderFor(
+                  (req['recipient_photo_url'] ?? req['client_avatar_url'] ?? '')
+                      .toString(),
+                );
+                return Card(
+                  child: ListTile(
+                    onTap: widget.api.role == 'traveler'
+                        ? () => _matchAsTraveler(req)
+                        : null,
+                    leading: CircleAvatar(
+                      backgroundImage: photo,
+                      child: photo == null
+                          ? Text(
+                              ((req['recipient_name'] ??
+                                              req['client_name'] ??
+                                              'C')
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty
+                                      ? (req['recipient_name'] ??
+                                              req['client_name'] ??
+                                              'C')
+                                          .toString()
+                                          .trim()[0]
+                                      : 'C')
+                                  .toUpperCase(),
+                            )
+                          : null,
+                    ),
+                    title: Text('${req['origin']} -> ${req['destination']}'),
+                    subtitle: Text(
+                      'Client: ${req['client_name'] ?? 'Unknown'}\nDeliver to: ${req['recipient_name'] ?? ''} | ${req['recipient_phone'] ?? ''}\nDropoff: ${req['dropoff_address'] ?? ''}\nWeight: ${req['weight_kg']}kg | Value: ${req['declared_value']}',
+                    ),
+                    trailing: widget.api.role == 'traveler'
+                        ? const Icon(Icons.handshake)
                         : null,
                   ),
-                  title: Text('${req['origin']} -> ${req['destination']}'),
-                  subtitle: Text(
-                    'Client: ${req['client_name'] ?? 'Unknown'}\nDeliver to: ${req['recipient_name'] ?? ''} | ${req['recipient_phone'] ?? ''}\nDropoff: ${req['dropoff_address'] ?? ''}\nWeight: ${req['weight_kg']}kg | Value: ${req['declared_value']}',
-                  ),
-                  trailing: widget.api.role == 'traveler'
-                      ? const Icon(Icons.handshake)
-                      : null,
-                ),
-              );
-            }),
-          ],
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );

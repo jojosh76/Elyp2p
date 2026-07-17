@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,33 +41,40 @@ const (
 )
 
 type Server struct {
-	repo            store.Repository
-	authManager     *auth.Manager
-	commissionRate  float64
-	otpTTL          time.Duration
-	otpDevMode      bool
-	twilioSID       string
-	twilioToken     string
-	twilioFrom      string
-	uploadSecret    string
-	uploadDir       string
-	uploadTokenTTL  time.Duration
-	authMaxFails    int
-	authLockWindow  time.Duration
-	otpMaxFails     int
-	otpLockWindow   time.Duration
-	attemptsMu      sync.Mutex
-	loginAttempts   map[string]authAttempt
-	otpAttempts     map[string]authAttempt
-	revokedTokensMu sync.Mutex
-	revokedTokens   map[string]time.Time
-	paymentProvider payments.Provider
-	mux             *http.ServeMux
+	repo             store.Repository
+	authManager      *auth.Manager
+	commissionRate   float64
+	otpTTL           time.Duration
+	otpDevMode       bool
+	twilioSID        string
+	twilioToken      string
+	twilioFrom       string
+	uploadSecret     string
+	uploadDir        string
+	uploadTokenTTL   time.Duration
+	authMaxFails     int
+	authLockWindow   time.Duration
+	otpMaxFails      int
+	otpLockWindow    time.Duration
+	attemptsMu       sync.Mutex
+	loginAttempts    map[string]authAttempt
+	otpAttempts      map[string]authAttempt
+	revokedTokensMu  sync.Mutex
+	revokedTokens    map[string]time.Time
+	rateLimitMu      sync.Mutex
+	rateLimitEntries map[string]rateLimitEntry
+	paymentProvider  payments.Provider
+	mux              *http.ServeMux
 }
 
 type authAttempt struct {
 	Failures    int
 	LockedUntil time.Time
+}
+
+type rateLimitEntry struct {
+	Count   int
+	ResetAt time.Time
 }
 
 func NewServer(
@@ -102,25 +110,26 @@ func NewServer(
 		uploadTokenTTL = 15 * time.Minute
 	}
 	s := &Server{
-		repo:            repo,
-		authManager:     authManager,
-		commissionRate:  commissionRate,
-		otpTTL:          otpTTL,
-		otpDevMode:      otpDevMode,
-		twilioSID:       strings.TrimSpace(twilioSID),
-		twilioToken:     strings.TrimSpace(twilioToken),
-		twilioFrom:      strings.TrimSpace(twilioFrom),
-		uploadSecret:    strings.TrimSpace(uploadSecret),
-		uploadDir:       strings.TrimSpace(uploadDir),
-		uploadTokenTTL:  uploadTokenTTL,
-		authMaxFails:    authMaxFails,
-		authLockWindow:  authLockWindow,
-		otpMaxFails:     otpMaxFails,
-		otpLockWindow:   otpLockWindow,
-		loginAttempts:   map[string]authAttempt{},
-		otpAttempts:     map[string]authAttempt{},
-		paymentProvider: payments.NewNoopProvider(),
-		mux:             http.NewServeMux(),
+		repo:             repo,
+		authManager:      authManager,
+		commissionRate:   commissionRate,
+		otpTTL:           otpTTL,
+		otpDevMode:       otpDevMode,
+		twilioSID:        strings.TrimSpace(twilioSID),
+		twilioToken:      strings.TrimSpace(twilioToken),
+		twilioFrom:       strings.TrimSpace(twilioFrom),
+		uploadSecret:     strings.TrimSpace(uploadSecret),
+		uploadDir:        strings.TrimSpace(uploadDir),
+		uploadTokenTTL:   uploadTokenTTL,
+		authMaxFails:     authMaxFails,
+		authLockWindow:   authLockWindow,
+		otpMaxFails:      otpMaxFails,
+		otpLockWindow:    otpLockWindow,
+		loginAttempts:    map[string]authAttempt{},
+		otpAttempts:      map[string]authAttempt{},
+		rateLimitEntries: map[string]rateLimitEntry{},
+		paymentProvider:  payments.NewNoopProvider(),
+		mux:              http.NewServeMux(),
 	}
 	if s.uploadSecret == "" {
 		s.uploadSecret = "insecure-upload-secret"
@@ -134,7 +143,17 @@ func NewServer(
 }
 
 func (s *Server) Handler() http.Handler {
-	return s.mux
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.applySecurityHeaders(w, r)
+		if s.shouldRateLimit(r) {
+			if ok, retryAfter := s.allowRequest(r); !ok {
+				w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+				writeErr(w, http.StatusTooManyRequests, "too many requests; try again later")
+				return
+			}
+		}
+		s.mux.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) SetPaymentProvider(provider payments.Provider) {
@@ -207,6 +226,67 @@ var (
 	roleClientOrAdmin   = []string{string(domain.RoleClient), string(domain.RoleAdmin)}
 	roleAdminOnly       = []string{string(domain.RoleAdmin)}
 )
+
+func (s *Server) applySecurityHeaders(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'")
+	w.Header().Set("X-XSS-Protection", "0")
+	if r != nil && r.TLS != nil {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	}
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+func (s *Server) shouldRateLimit(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	switch r.URL.Path {
+	case "/v1/auth/register", "/v1/auth/login", "/v1/auth/social", "/v1/auth/otp/verify":
+		return r.Method == http.MethodPost
+	default:
+		return false
+	}
+}
+
+func (s *Server) allowRequest(r *http.Request) (bool, time.Duration) {
+	if r == nil {
+		return true, 0
+	}
+	key := fmt.Sprintf("auth:%s:%s", strings.TrimSpace(r.URL.Path), s.clientKey(r))
+	now := time.Now().UTC()
+	s.rateLimitMu.Lock()
+	defer s.rateLimitMu.Unlock()
+	entry := s.rateLimitEntries[key]
+	if entry.ResetAt.IsZero() || entry.ResetAt.Before(now) {
+		entry = rateLimitEntry{ResetAt: now.Add(15 * time.Second)}
+	}
+	if entry.Count >= 10 {
+		return false, entry.ResetAt.Sub(now)
+	}
+	entry.Count++
+	s.rateLimitEntries[key] = entry
+	return true, 0
+}
+
+func (s *Server) clientKey(r *http.Request) string {
+	if r == nil {
+		return "unknown"
+	}
+	if ip := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); ip != "" {
+		return strings.Split(ip, ",")[0]
+	}
+	ip := strings.TrimSpace(r.RemoteAddr)
+	if ip == "" {
+		return "unknown"
+	}
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		return host
+	}
+	return ip
+}
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

@@ -52,8 +52,13 @@ class _KYCScreenState extends State<KYCScreen> {
     try {
       _items = await widget.api.myKYC();
       await widget.api.me();
-      _homeAddress.text = (widget.api.currentUser?['permanent_address'] as String?) ?? _homeAddress.text;
-      final country = (widget.api.currentUser?['country_of_residence'] as String?)?.trim() ?? '';
+      _homeAddress.text =
+          (widget.api.currentUser?['permanent_address'] as String?) ??
+              _homeAddress.text;
+      final country =
+          (widget.api.currentUser?['country_of_residence'] as String?)
+                  ?.trim() ??
+              '';
       if (country.isNotEmpty) _homeCountry = country;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -62,7 +67,8 @@ class _KYCScreenState extends State<KYCScreen> {
     }
   }
 
-  Future<void> _pickImage(ValueChanged<String> onPicked, {required bool camera}) async {
+  Future<void> _pickImage(ValueChanged<String> onPicked,
+      {required bool camera}) async {
     final file = await _picker.pickImage(
       source: camera ? ImageSource.camera : ImageSource.gallery,
       imageQuality: 80,
@@ -83,7 +89,8 @@ class _KYCScreenState extends State<KYCScreen> {
     setState(() => onPicked(path));
   }
 
-  Future<void> _chooseSource(String title, ValueChanged<String> onPicked) async {
+  Future<void> _chooseSource(
+      String title, ValueChanged<String> onPicked) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -135,7 +142,8 @@ class _KYCScreenState extends State<KYCScreen> {
         _secondaryBack.isEmpty ||
         _homeAddress.text.trim().isEmpty ||
         _homeCountry.trim().isEmpty) {
-      setState(() => _error = 'Upload passport front/back, ID or permit front/back, and fill home country/address');
+      setState(() => _error =
+          'Upload passport front/back, ID or permit front/back, and fill home country/address');
       return;
     }
 
@@ -149,7 +157,8 @@ class _KYCScreenState extends State<KYCScreen> {
       final fullName =
           (widget.api.currentUser?['full_name'] as String?)?.trim() ?? '';
       if (fullName.isEmpty) {
-        throw Exception('Full name is missing on your profile. Update it in Profile first.');
+        throw Exception(
+            'Full name is missing on your profile. Update it in Profile first.');
       }
 
       await widget.api.updateProfile({
@@ -191,119 +200,150 @@ class _KYCScreenState extends State<KYCScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ResponsivePage(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text(
-              'KYC Upload Center v2',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            Text('Current KYC Status: $kycStatus', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      showCountryPicker(
-                        context: context,
-                        showPhoneCode: false,
-                        onSelect: (country) => setState(() => _homeCountry = country.name),
-                      );
-                    },
-                    icon: const Icon(Icons.public),
-                    label: Text('Home Country: $_homeCountry'),
-                  ),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  onSurface: Colors.white,
+                  onSurfaceVariant: Colors.white.withValues(alpha: 0.75),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _homeAddress,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Home Address'),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: _secondaryDocType,
-              items: const [
-                DropdownMenuItem(value: 'id_card', child: Text('ID Card')),
-                DropdownMenuItem(value: 'residence_permit', child: Text('Residence Permit')),
-              ],
-              onChanged: (v) => setState(() => _secondaryDocType = v ?? 'id_card'),
-              decoration: const InputDecoration(labelText: 'Second Document Type'),
-            ),
-            const SizedBox(height: 14),
-            const Text('Passport', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.badge),
-              title: const Text('Passport Front'),
-              subtitle: Text(_short(_passportFront)),
-              trailing: OutlinedButton(
-                onPressed: () => _chooseSource('Passport Front', (v) => _passportFront = v),
-                child: const Text('Upload'),
+            inputDecorationTheme:
+                Theme.of(context).inputDecorationTheme.copyWith(
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      hintStyle: const TextStyle(color: Colors.white60),
+                    ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text(
+                'KYC Upload Center v2',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
               ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.badge_outlined),
-              title: const Text('Passport Back'),
-              subtitle: Text(_short(_passportBack)),
-              trailing: OutlinedButton(
-                onPressed: () => _chooseSource('Passport Back', (v) => _passportBack = v),
-                child: const Text('Upload'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(_secondaryDocType == 'id_card' ? 'ID Card' : 'Residence Permit',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.credit_card),
-              title: Text('${_secondaryDocType == 'id_card' ? 'ID Card' : 'Residence Permit'} Front'),
-              subtitle: Text(_short(_secondaryFront)),
-              trailing: OutlinedButton(
-                onPressed: () => _chooseSource('Document Front', (v) => _secondaryFront = v),
-                child: const Text('Upload'),
-              ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.credit_card_off),
-              title: Text('${_secondaryDocType == 'id_card' ? 'ID Card' : 'Residence Permit'} Back'),
-              subtitle: Text(_short(_secondaryBack)),
-              trailing: OutlinedButton(
-                onPressed: () => _chooseSource('Document Back', (v) => _secondaryBack = v),
-                child: const Text('Upload'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-            FilledButton(
-              onPressed: _submitting ? null : _submit,
-              child: _submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Submit KYC For Review'),
-            ),
-            const Divider(height: 28),
-            if (_loading) const Center(child: CircularProgressIndicator()),
-            const Text('My KYC Submissions', style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._items.map((e) => Card(
-                  child: ListTile(
-                    title: Text('${e['document_type']} - ${e['status']}'),
-                    subtitle: Text(e['review_notes'] ?? ''),
+              const SizedBox(height: 8),
+              Text('Current KYC Status: $kycStatus',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        showCountryPicker(
+                          context: context,
+                          showPhoneCode: false,
+                          onSelect: (country) =>
+                              setState(() => _homeCountry = country.name),
+                        );
+                      },
+                      icon: const Icon(Icons.public),
+                      label: Text('Home Country: $_homeCountry'),
+                    ),
                   ),
-                )),
-          ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _homeAddress,
+                minLines: 2,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Home Address'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _secondaryDocType,
+                items: const [
+                  DropdownMenuItem(value: 'id_card', child: Text('ID Card')),
+                  DropdownMenuItem(
+                      value: 'residence_permit',
+                      child: Text('Residence Permit')),
+                ],
+                onChanged: (v) =>
+                    setState(() => _secondaryDocType = v ?? 'id_card'),
+                decoration:
+                    const InputDecoration(labelText: 'Second Document Type'),
+              ),
+              const SizedBox(height: 14),
+              const Text('Passport',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.badge),
+                title: const Text('Passport Front'),
+                subtitle: Text(_short(_passportFront)),
+                trailing: OutlinedButton(
+                  onPressed: () => _chooseSource(
+                      'Passport Front', (v) => _passportFront = v),
+                  child: const Text('Upload'),
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Passport Back'),
+                subtitle: Text(_short(_passportBack)),
+                trailing: OutlinedButton(
+                  onPressed: () =>
+                      _chooseSource('Passport Back', (v) => _passportBack = v),
+                  child: const Text('Upload'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                  _secondaryDocType == 'id_card'
+                      ? 'ID Card'
+                      : 'Residence Permit',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.credit_card),
+                title: Text(
+                    '${_secondaryDocType == 'id_card' ? 'ID Card' : 'Residence Permit'} Front'),
+                subtitle: Text(_short(_secondaryFront)),
+                trailing: OutlinedButton(
+                  onPressed: () => _chooseSource(
+                      'Document Front', (v) => _secondaryFront = v),
+                  child: const Text('Upload'),
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.credit_card_off),
+                title: Text(
+                    '${_secondaryDocType == 'id_card' ? 'ID Card' : 'Residence Permit'} Back'),
+                subtitle: Text(_short(_secondaryBack)),
+                trailing: OutlinedButton(
+                  onPressed: () =>
+                      _chooseSource('Document Back', (v) => _secondaryBack = v),
+                  child: const Text('Upload'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+              FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Submit KYC For Review'),
+              ),
+              const Divider(height: 28),
+              if (_loading) const Center(child: CircularProgressIndicator()),
+              const Text('My KYC Submissions',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ..._items.map((e) => Card(
+                    child: ListTile(
+                      title: Text('${e['document_type']} - ${e['status']}'),
+                      subtitle: Text(e['review_notes'] ?? ''),
+                    ),
+                  )),
+            ],
+          ),
         ),
       ),
     );

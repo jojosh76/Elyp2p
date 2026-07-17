@@ -1,9 +1,18 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   ApiClient({required this.baseUrl, this.demoMode = false}) {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null ||
+        (uri.scheme != 'https' && !baseUrl.contains('localhost'))) {
+      throw ArgumentError.value(
+        baseUrl,
+        'baseUrl',
+        'API base URL must use HTTPS except for localhost development',
+      );
+    }
     _seed();
   }
 
@@ -16,6 +25,7 @@ class ApiClient {
   Map<String, dynamic>? currentUser;
   static const _sessionTokenKey = 'session_token';
   static const _sessionUserKey = 'session_user';
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   String get role => (currentUser?['role'] as String?) ?? 'client';
 
   final List<Map<String, dynamic>> _listings = <Map<String, dynamic>>[];
@@ -69,16 +79,15 @@ class ApiClient {
   }
 
   Future<void> persistSession() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_sessionTokenKey, token ?? '');
-    await p.setString(
-        _sessionUserKey, jsonEncode(currentUser ?? <String, dynamic>{}));
+    await _secureStorage.write(key: _sessionTokenKey, value: token ?? '');
+    await _secureStorage.write(
+        key: _sessionUserKey,
+        value: jsonEncode(currentUser ?? <String, dynamic>{}));
   }
 
   Future<void> restoreSession() async {
-    final p = await SharedPreferences.getInstance();
-    final t = p.getString(_sessionTokenKey) ?? '';
-    final u = p.getString(_sessionUserKey) ?? '{}';
+    final t = await _secureStorage.read(key: _sessionTokenKey) ?? '';
+    final u = await _secureStorage.read(key: _sessionUserKey) ?? '{}';
     token = t.isEmpty ? null : t;
     try {
       currentUser = (jsonDecode(u) as Map).cast<String, dynamic>();
@@ -90,9 +99,8 @@ class ApiClient {
   Future<void> clearSession() async {
     token = null;
     currentUser = null;
-    final p = await SharedPreferences.getInstance();
-    await p.remove(_sessionTokenKey);
-    await p.remove(_sessionUserKey);
+    await _secureStorage.delete(key: _sessionTokenKey);
+    await _secureStorage.delete(key: _sessionUserKey);
   }
 
   Map<String, String> _headers({bool auth = false}) {
@@ -186,7 +194,8 @@ class ApiClient {
       final fn = (body?['full_name'] ?? 'Demo User').toString();
       if (path == '/v1/auth/register' &&
           (body?['role'] ?? 'client').toString() == 'admin') {
-        throw Exception('admin accounts must be created by an existing administrator');
+        throw Exception(
+            'admin accounts must be created by an existing administrator');
       }
       final inferred = path == '/v1/auth/register'
           ? (body?['role'] ?? 'client').toString()
@@ -202,8 +211,7 @@ class ApiClient {
         phone: (body?['phone'] ?? '').toString(),
         permanentAddress: (body?['permanent_address'] ?? '').toString(),
         passportNumber: (body?['passport_number'] ?? '').toString(),
-        countryOfResidence:
-            (body?['country_of_residence'] ?? 'US').toString(),
+        countryOfResidence: (body?['country_of_residence'] ?? 'US').toString(),
       );
       token = 'demo-token-${DateTime.now().millisecondsSinceEpoch}';
       currentUser = u;
@@ -624,6 +632,7 @@ class ApiClient {
     await persistSession();
     return out;
   }
+
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) async {
     final out = (await _call('PUT', '/v1/me/profile', auth: true, body: body))
         as Map<String, dynamic>;
@@ -631,6 +640,7 @@ class ApiClient {
     await persistSession();
     return out;
   }
+
   Future<List<dynamic>> listTravelerListings({String? destination}) async =>
       (await _call('GET', '/v1/travelers/listings',
           query: destination == null || destination.isEmpty
@@ -667,6 +677,7 @@ class ApiClient {
   Future<void> deleteEscrow(String id) async {
     await _call('DELETE', '/v1/me/escrows/$id', auth: true);
   }
+
   Future<Map<String, dynamic>> createMatch(
           {required String listingID,
           required String requestID,
@@ -701,10 +712,11 @@ class ApiClient {
       (await _call('POST', '/v1/escrows/$escrowID/dispute', auth: true))
           as Map<String, dynamic>;
   Future<Map<String, dynamic>> submitKYC(
-          {required String documentType,
-          required String documentReference,
-          required String addressProofRef}) async {
-    final out = (await _call('POST', '/v1/kyc/verifications', auth: true, body: {
+      {required String documentType,
+      required String documentReference,
+      required String addressProofRef}) async {
+    final out =
+        (await _call('POST', '/v1/kyc/verifications', auth: true, body: {
       'document_type': documentType,
       'document_reference': documentReference,
       'address_proof_ref': addressProofRef
@@ -715,6 +727,7 @@ class ApiClient {
     }
     return out;
   }
+
   Future<List<dynamic>> myKYC({String? status}) async =>
       (await _call('GET', '/v1/me/kyc/verifications',
           auth: true,
@@ -799,8 +812,8 @@ class ApiClient {
       (await _call('GET', '/v1/me/notifications', auth: true, list: true))
           as List<dynamic>;
   Future<int> myNotificationsUnreadCount() async {
-    final out = await _call('GET', '/v1/me/notifications/unread-count',
-        auth: true);
+    final out =
+        await _call('GET', '/v1/me/notifications/unread-count', auth: true);
     if (out is int) {
       return out;
     }
@@ -811,6 +824,7 @@ class ApiClient {
     }
     return 0;
   }
+
   Future<Map<String, dynamic>> markNotificationRead(String id) async =>
       (await _call('POST', '/v1/me/notifications/$id/read', auth: true))
           as Map<String, dynamic>;

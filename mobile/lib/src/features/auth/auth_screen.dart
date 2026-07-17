@@ -470,15 +470,25 @@ class _AuthScreenState extends State<AuthScreen>
                                     );
                                   },
                                   child: Container(
-                                    alignment: Alignment.center,
                                     width: 108,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     child: Text(
                                       '$_selectedCountryCode +$_selectedDialCode',
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w600),
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ),
+                                prefixIconConstraints:
+                                    const BoxConstraints(minWidth: 108),
                                 filled: true,
                                 fillColor: Colors.white,
                               ),

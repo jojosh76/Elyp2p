@@ -15,6 +15,42 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func TestSecurityHeadersAreApplied(t *testing.T) {
+	srv, _, _ := newTestServer(5, 5)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+	if got := rr.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected nosniff header, got %q", got)
+	}
+	if got := rr.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected frame options header, got %q", got)
+	}
+	if got := rr.Header().Get("Content-Security-Policy"); got == "" {
+		t.Fatalf("expected CSP header")
+	}
+}
+
+func TestAuthEndpointsAreRateLimited(t *testing.T) {
+	srv, _, _ := newTestServer(5, 5)
+	body := map[string]any{"email": "someone@example.com", "password": "bad-pass"}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	var lastCode int
+	for i := 0; i < 25; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rr, req)
+		lastCode = rr.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after exceeding rate limit, got %d", lastCode)
+	}
+}
+
 func TestAdminEndpointDeniedForClient(t *testing.T) {
 	srv, repo, am := newTestServer(5, 5)
 	client := mustCreateUser(t, repo, domain.User{
