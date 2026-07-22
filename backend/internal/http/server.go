@@ -27,6 +27,7 @@ import (
 	"p2p-delivery/backend/internal/auth"
 	"p2p-delivery/backend/internal/domain"
 	"p2p-delivery/backend/internal/payments"
+	"p2p-delivery/backend/internal/recommendations"
 	"p2p-delivery/backend/internal/store"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -194,6 +195,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /v1/me/notifications/unread-count", s.authRequired(s.myNotificationsUnreadCount, roleAny...))
 	s.mux.Handle("POST /v1/me/notifications/", s.authRequired(s.markNotificationRead, roleAny...))
 	s.mux.Handle("DELETE /v1/me/notifications/", s.authRequired(s.deleteNotification, roleAny...))
+	s.mux.Handle("GET /v1/recommendations/listings", s.authRequired(s.recommendListingsForRequest, roleClientOrAdmin...))
+	s.mux.Handle("GET /v1/recommendations/requests", s.authRequired(s.recommendRequestsForListing, roleTravelerOrAdmin...))
 	s.mux.Handle("POST /v1/uploads/presign", s.authRequired(s.createUploadToken, roleAny...))
 	s.mux.HandleFunc("PUT /v1/uploads/", s.uploadViaSignedURL)
 
@@ -978,6 +981,54 @@ func (s *Server) myRequests(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (s *Server) recommendListingsForRequest(w http.ResponseWriter, r *http.Request) {
+	requestID := strings.TrimSpace(r.URL.Query().Get("request_id"))
+	if requestID == "" {
+		writeErr(w, http.StatusBadRequest, "request_id is required")
+		return
+	}
+	request, err := s.repo.GetDeliveryRequestByID(requestID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if roleFromContext(r) != string(domain.RoleAdmin) && request.ClientID != userIDFromContext(r) {
+		writeErr(w, http.StatusForbidden, "request does not belong to current user")
+		return
+	}
+	listings, err := s.repo.ListTravelerListings(request.Destination)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	listings = s.enrichTravelerListings(listings)
+	writeJSON(w, http.StatusOK, recommendations.ForRequest(request, listings, time.Now().UTC()))
+}
+
+func (s *Server) recommendRequestsForListing(w http.ResponseWriter, r *http.Request) {
+	listingID := strings.TrimSpace(r.URL.Query().Get("listing_id"))
+	if listingID == "" {
+		writeErr(w, http.StatusBadRequest, "listing_id is required")
+		return
+	}
+	listing, err := s.repo.GetTravelerListingByID(listingID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if roleFromContext(r) != string(domain.RoleAdmin) && listing.TravelerID != userIDFromContext(r) {
+		writeErr(w, http.StatusForbidden, "listing does not belong to current user")
+		return
+	}
+	requests, err := s.repo.ListDeliveryRequests(listing.Destination)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	requests = s.enrichDeliveryRequests(requests)
+	writeJSON(w, http.StatusOK, recommendations.ForListing(listing, requests, time.Now().UTC()))
+}
+
 func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		ListingID           string     `json:"listing_id"`
@@ -989,9 +1040,18 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if in.ListingID == "" || in.RequestID == "" || in.AgreedPrice <= 0 {
-		writeErr(w, http.StatusBadRequest, "listing_id, request_id and positive agreed_price are required")
+	if in.ListingID == "" || in.RequestID == "" {
+		writeErr(w, http.StatusBadRequest, "listing_id and request_id are required")
 		return
+	}
+	if in.AgreedPrice <= 0 {
+		listing, lErr := s.repo.GetTravelerListingByID(in.ListingID)
+		request, rErr := s.repo.GetDeliveryRequestByID(in.RequestID)
+		if lErr != nil || rErr != nil {
+			writeErr(w, http.StatusBadRequest, "positive agreed_price is required when listing/request cannot be priced")
+			return
+		}
+		in.AgreedPrice = recommendations.SuggestedPrice(listing, request, time.Now().UTC())
 	}
 	out, err := s.repo.CreateMatch(domain.Match{
 		ListingID:           in.ListingID,

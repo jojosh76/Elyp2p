@@ -301,6 +301,32 @@ class ApiClient {
           .toList();
     }
     if (path == '/v1/me/matches') return List<dynamic>.from(_matches);
+    if (path == '/v1/recommendations/listings') {
+      final requestID = (query?['request_id'] ?? '').toString();
+      final request = _requests.firstWhere(
+        (e) => (e['id'] ?? '').toString() == requestID,
+        orElse: () => <String, dynamic>{},
+      );
+      return _listings
+          .map((listing) => _demoRecommendation(listing, request))
+          .toList()
+        ..sort((a, b) =>
+            ((b['score'] as num?)?.toInt() ?? 0) -
+            ((a['score'] as num?)?.toInt() ?? 0));
+    }
+    if (path == '/v1/recommendations/requests') {
+      final listingID = (query?['listing_id'] ?? '').toString();
+      final listing = _listings.firstWhere(
+        (e) => (e['id'] ?? '').toString() == listingID,
+        orElse: () => <String, dynamic>{},
+      );
+      return _requests
+          .map((request) => _demoRecommendation(listing, request))
+          .toList()
+        ..sort((a, b) =>
+            ((b['score'] as num?)?.toInt() ?? 0) -
+            ((a['score'] as num?)?.toInt() ?? 0));
+    }
     if (path == '/v1/me/escrows') return List<dynamic>.from(_escrows);
     if (path.startsWith('/v1/me/escrows/') && method == 'DELETE') {
       final id = path.split('/').last;
@@ -535,6 +561,45 @@ class ApiClient {
     throw Exception('Demo route not implemented: $method $path');
   }
 
+  Map<String, dynamic> _demoRecommendation(
+    Map<String, dynamic> listing,
+    Map<String, dynamic> request,
+  ) {
+    final destinationMatch = (listing['destination'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim() ==
+        (request['destination'] ?? '').toString().toLowerCase().trim();
+    final originMatch =
+        (listing['origin'] ?? '').toString().toLowerCase().trim() ==
+            (request['origin'] ?? '').toString().toLowerCase().trim();
+    final maxWeight = (listing['max_weight_kg'] as num?)?.toDouble() ?? 0;
+    final weight = (request['weight_kg'] as num?)?.toDouble() ?? 0;
+    final pricePerKg = (listing['price_per_kg'] as num?)?.toDouble() ?? 10;
+    final feasible = destinationMatch && weight > 0 && weight <= maxWeight;
+    final score = ((destinationMatch ? 45 : 0) +
+            (originMatch ? 18 : 0) +
+            (feasible ? 25 : 0) +
+            10)
+        .clamp(0, feasible ? 100 : 55);
+    final suggestedPrice = double.parse(
+      (pricePerKg * weight).toStringAsFixed(2),
+    );
+    return <String, dynamic>{
+      'listing': listing,
+      'request': request,
+      'score': score,
+      'acceptance_probability': feasible ? (20 + score * 0.75).round() : 25,
+      'suggested_price': suggestedPrice <= 0 ? pricePerKg : suggestedPrice,
+      'feasible': feasible,
+      'reasons': <String>[
+        if (destinationMatch) 'Destination match',
+        if (originMatch) 'Origin match',
+        if (feasible) 'Capacity fit',
+      ],
+    };
+  }
+
   Future<Map<String, dynamic>> register(
       {required String email,
       required String password,
@@ -670,6 +735,14 @@ class ApiClient {
           as List<dynamic>;
   Future<List<dynamic>> myMatches() async =>
       (await _call('GET', '/v1/me/matches', auth: true, list: true))
+          as List<dynamic>;
+  Future<List<dynamic>> recommendedListingsForRequest(String requestID) async =>
+      (await _call('GET', '/v1/recommendations/listings',
+          auth: true, query: {'request_id': requestID}, list: true))
+          as List<dynamic>;
+  Future<List<dynamic>> recommendedRequestsForListing(String listingID) async =>
+      (await _call('GET', '/v1/recommendations/requests',
+          auth: true, query: {'listing_id': listingID}, list: true))
           as List<dynamic>;
   Future<List<dynamic>> myEscrows() async =>
       (await _call('GET', '/v1/me/escrows', auth: true, list: true))

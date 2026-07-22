@@ -222,6 +222,87 @@ func TestEscrowLifecycleActions(t *testing.T) {
 	assertStatus(t, srv, http.MethodPost, "/v1/escrows/"+escrow.ID+"/refund", clientToken, nil, http.StatusOK)
 }
 
+func TestRecommendListingsForRequestReturnsScoreAndSuggestedPrice(t *testing.T) {
+	srv, repo, am := newTestServer(5, 5)
+	traveler := mustCreateUser(t, repo, domain.User{
+		Email:              "traveler-rec@test.local",
+		FullName:           "Recommendation Traveler",
+		Role:               domain.RoleTraveler,
+		PasswordHash:       mustHash(t, "Traveler#12345"),
+		KYCStatus:          "verified",
+		Phone:              "+14155550116",
+		PermanentAddress:   "123 Test Ave",
+		PassportNumber:     "X1234568",
+		CountryOfResidence: "US",
+	})
+	client := mustCreateUser(t, repo, domain.User{
+		Email:        "client-rec@test.local",
+		FullName:     "Recommendation Client",
+		Role:         domain.RoleClient,
+		PasswordHash: mustHash(t, "Client#12345"),
+		KYCStatus:    "unverified",
+		Phone:        "+14155550117",
+	})
+	token, err := am.Issue(client.ID, client.Role)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+	now := time.Now().UTC()
+	_, err = repo.CreateTravelerListing(domain.TravelerListing{
+		TravelerID:      traveler.ID,
+		Origin:          "Paris",
+		DestinationType: domain.DestinationCity,
+		Destination:     "Lagos",
+		DepartureDate:   now.Add(24 * time.Hour),
+		ArrivalDate:     now.Add(48 * time.Hour),
+		MaxWeightKg:     5,
+		PricePerKg:      12,
+	})
+	if err != nil {
+		t.Fatalf("create listing: %v", err)
+	}
+	request, err := repo.CreateDeliveryRequest(domain.DeliveryRequest{
+		ClientID:           client.ID,
+		Origin:             "Paris",
+		DestinationType:    domain.DestinationCity,
+		Destination:        "Lagos",
+		RecipientName:      "Recipient",
+		RecipientPhone:     "+2348012345678",
+		DropoffAddress:     "Lagos Island",
+		WeightKg:           2,
+		PackageDescription: "Phone accessories",
+		DeclaredValue:      180,
+	})
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/recommendations/listings?request_id="+request.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d body=%s", rr.Code, rr.Body.String())
+	}
+	var out []struct {
+		Score          int     `json:"score"`
+		SuggestedPrice float64 `json:"suggested_price"`
+		Feasible       bool    `json:"feasible"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected one recommendation, got %d", len(out))
+	}
+	if !out[0].Feasible || out[0].Score < 80 {
+		t.Fatalf("expected high feasible score, got %+v", out[0])
+	}
+	if out[0].SuggestedPrice <= 24 {
+		t.Fatalf("expected dynamic price above base, got %.2f", out[0].SuggestedPrice)
+	}
+}
+
 func TestLogoutRevokesToken(t *testing.T) {
 	srv, repo, am := newTestServer(5, 5)
 	user := mustCreateUser(t, repo, domain.User{

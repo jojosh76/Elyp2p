@@ -31,6 +31,8 @@ Base URL: `http://localhost:8080`
 - `GET /v1/me/notifications/unread-count`
 - `POST /v1/me/notifications/{id}/read`
 - `DELETE /v1/me/notifications/{id}`
+- `GET /v1/recommendations/listings?request_id=...`
+- `GET /v1/recommendations/requests?listing_id=...`
 - `GET /v1/me/payout-account`
 - `POST /v1/uploads/presign`
 
@@ -66,6 +68,8 @@ Base URL: `http://localhost:8080`
 
 - Traveler must be KYC-verified before a match can be created.
 - Package must be approved by package verification before a match can be created.
+- Match recommendations return score, acceptance probability, feasibility, reasons, and AI-suggested price; they do not bypass KYC/package verification rules.
+- `POST /v1/matches` can compute the suggested price automatically when `agreed_price` is omitted or zero.
 - Escrow release requires escrow to be funded first.
 - Escrow refund requires escrow to be `funded` or `disputed`.
 - Escrow dispute requires escrow to be `funded`.

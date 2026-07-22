@@ -96,49 +96,102 @@ class _RequestsScreenState extends State<RequestsScreen> {
       }
 
       String selectedListingID = (myListings.first['id'] as String?) ?? '';
-      final priceCtrl = TextEditingController(text: '25');
+      final recommendationByListing = <String, Map<String, dynamic>>{};
+      for (final listing
+          in myListings.cast<Map>().map((e) => e.cast<String, dynamic>())) {
+        final listingID = (listing['id'] ?? '').toString();
+        if (listingID.isEmpty) continue;
+        try {
+          final recs = await widget.api.recommendedRequestsForListing(listingID);
+          final rec =
+              recs.cast<Map>().map((e) => e.cast<String, dynamic>()).firstWhere(
+                    (r) =>
+                        ((r['request'] as Map?)?['id'] ?? '').toString() ==
+                        (request['id'] ?? '').toString(),
+                    orElse: () => <String, dynamic>{},
+                  );
+          if (rec.isNotEmpty) recommendationByListing[listingID] = rec;
+        } catch (_) {
+          // Recommendations are an enhancement; matching still works without them.
+        }
+      }
+      double suggestedPriceFor(String listingID) {
+        final recPrice =
+            (recommendationByListing[listingID]?['suggested_price'] as num?)
+                ?.toDouble();
+        if (recPrice != null && recPrice > 0) return recPrice;
+        final listing = myListings.cast<Map>().firstWhere(
+              (l) => (l['id'] ?? '').toString() == listingID,
+              orElse: () => <String, dynamic>{},
+            );
+        final weight = (request['weight_kg'] as num?)?.toDouble() ?? 1;
+        final pricePerKg = (listing['price_per_kg'] as num?)?.toDouble() ?? 10;
+        return weight * pricePerKg;
+      }
+
+      final priceCtrl = TextEditingController(
+        text: suggestedPriceFor(selectedListingID).toStringAsFixed(2),
+      );
       if (!mounted) return;
       final ok = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Match With Request'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                  'Request: ${request['origin']} -> ${request['destination']}'),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: selectedListingID,
-                items: myListings
-                    .map((l) => DropdownMenuItem<String>(
-                          value: (l['id'] as String?) ?? '',
-                          child: Text('${l['origin']} -> ${l['destination']}'),
-                        ))
-                    .toList(),
-                onChanged: (v) => selectedListingID = v ?? '',
-                decoration: const InputDecoration(labelText: 'Your Listing'),
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            final rec = recommendationByListing[selectedListingID];
+            return AlertDialog(
+              title: const Text('Match With Request'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                      'Request: ${request['origin']} -> ${request['destination']}'),
+                  if (rec != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'AI score ${rec['score']}% | Accept ${rec['acceptance_probability']}%',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedListingID,
+                    items: myListings
+                        .map((l) => DropdownMenuItem<String>(
+                              value: (l['id'] as String?) ?? '',
+                              child:
+                                  Text('${l['origin']} -> ${l['destination']}'),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      selectedListingID = v ?? '';
+                      priceCtrl.text =
+                          suggestedPriceFor(selectedListingID).toStringAsFixed(2);
+                      setDialogState(() {});
+                    },
+                    decoration: const InputDecoration(labelText: 'Your Listing'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Agreed Price (AI suggested, USD)'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: priceCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration:
-                    const InputDecoration(labelText: 'Agreed Price (USD)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Create Match'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Create Match'),
+                ),
+              ],
+            );
+          },
         ),
       );
       if (ok != true) {

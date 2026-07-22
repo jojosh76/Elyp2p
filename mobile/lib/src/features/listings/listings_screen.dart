@@ -60,52 +60,99 @@ class _ListingsScreenState extends State<ListingsScreen> {
     }
 
     String selectedRequestID = (_myRequests.first['id'] as String?) ?? '';
+    final recommendationByRequest = <String, Map<String, dynamic>>{};
+    for (final req in _myRequests.cast<Map>().map((e) => e.cast<String, dynamic>())) {
+      final requestID = (req['id'] ?? '').toString();
+      if (requestID.isEmpty) continue;
+      try {
+        final recs = await widget.api.recommendedListingsForRequest(requestID);
+        final rec = recs.cast<Map>().map((e) => e.cast<String, dynamic>()).firstWhere(
+              (r) =>
+                  ((r['listing'] as Map?)?['id'] ?? '').toString() ==
+                  (listing['id'] ?? '').toString(),
+              orElse: () => <String, dynamic>{},
+            );
+        if (rec.isNotEmpty) recommendationByRequest[requestID] = rec;
+      } catch (_) {
+        // Recommendations are an enhancement; matching still works without them.
+      }
+    }
+    double suggestedPriceFor(String requestID) {
+      final recPrice =
+          (recommendationByRequest[requestID]?['suggested_price'] as num?)
+              ?.toDouble();
+      if (recPrice != null && recPrice > 0) return recPrice;
+      final request = _myRequests.cast<Map>().firstWhere(
+            (r) => (r['id'] ?? '').toString() == requestID,
+            orElse: () => <String, dynamic>{},
+          );
+      final weight = (request['weight_kg'] as num?)?.toDouble() ?? 1;
+      final pricePerKg = (listing['price_per_kg'] as num?)?.toDouble() ?? 10;
+      return weight * pricePerKg;
+    }
+
     final agreedPriceCtrl = TextEditingController(
-      text: ((listing['price_per_kg'] as num?)?.toDouble() ?? 10)
-          .toStringAsFixed(2),
+      text: suggestedPriceFor(selectedRequestID).toStringAsFixed(2),
     );
     if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Start Delivery Match'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-                'Traveler route: ${listing['origin']} -> ${listing['destination']}'),
-            const SizedBox(height: 6),
-            Text('Traveler: ${listing['traveler_name'] ?? 'Unknown'}'),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: selectedRequestID,
-              items: _myRequests
-                  .map((r) => DropdownMenuItem<String>(
-                        value: (r['id'] as String?) ?? '',
-                        child: Text('${r['origin']} -> ${r['destination']}'),
-                      ))
-                  .toList(),
-              onChanged: (v) => selectedRequestID = v ?? '',
-              decoration: const InputDecoration(labelText: 'Your Request'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final rec = recommendationByRequest[selectedRequestID];
+          return AlertDialog(
+            title: const Text('Start Delivery Match'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                    'Traveler route: ${listing['origin']} -> ${listing['destination']}'),
+                const SizedBox(height: 6),
+                Text('Traveler: ${listing['traveler_name'] ?? 'Unknown'}'),
+                if (rec != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'AI score ${rec['score']}% | Accept ${rec['acceptance_probability']}%',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRequestID,
+                  items: _myRequests
+                      .map((r) => DropdownMenuItem<String>(
+                            value: (r['id'] as String?) ?? '',
+                            child: Text('${r['origin']} -> ${r['destination']}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    selectedRequestID = v ?? '';
+                    agreedPriceCtrl.text =
+                        suggestedPriceFor(selectedRequestID).toStringAsFixed(2);
+                    setDialogState(() {});
+                  },
+                  decoration: const InputDecoration(labelText: 'Your Request'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: agreedPriceCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Agreed Price (AI suggested, USD)'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: agreedPriceCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration:
-                  const InputDecoration(labelText: 'Agreed Price (USD)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Create Match')),
-        ],
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Create Match')),
+            ],
+          );
+        },
       ),
     );
 
