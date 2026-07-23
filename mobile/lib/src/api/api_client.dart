@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   ApiClient({required this.baseUrl, this.demoMode = false}) {
@@ -79,18 +80,40 @@ class ApiClient {
   }
 
   Future<void> persistSession() async {
-    await _secureStorage.write(key: _sessionTokenKey, value: token ?? '');
-    await _secureStorage.write(
-        key: _sessionUserKey,
-        value: jsonEncode(currentUser ?? <String, dynamic>{}));
+    final userJson = jsonEncode(currentUser ?? <String, dynamic>{});
+    // Primary: flutter_secure_storage
+    try {
+      await _secureStorage.write(key: _sessionTokenKey, value: token ?? '');
+      await _secureStorage.write(key: _sessionUserKey, value: userJson);
+    } catch (_) {}
+    // Fallback: SharedPreferences (survives app restart on all Android versions)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionTokenKey, token ?? '');
+      await prefs.setString(_sessionUserKey, userJson);
+    } catch (_) {}
   }
 
   Future<void> restoreSession() async {
-    final t = await _secureStorage.read(key: _sessionTokenKey) ?? '';
-    final u = await _secureStorage.read(key: _sessionUserKey) ?? '{}';
+    String t = '';
+    String u = '{}';
+    // Try secure storage first
+    try {
+      t = await _secureStorage.read(key: _sessionTokenKey) ?? '';
+      u = await _secureStorage.read(key: _sessionUserKey) ?? '{}';
+    } catch (_) {}
+    // Fallback to SharedPreferences if secure storage is empty
+    if (t.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        t = prefs.getString(_sessionTokenKey) ?? '';
+        u = prefs.getString(_sessionUserKey) ?? '{}';
+      } catch (_) {}
+    }
     token = t.isEmpty ? null : t;
     try {
-      currentUser = (jsonDecode(u) as Map).cast<String, dynamic>();
+      final decoded = jsonDecode(u);
+      currentUser = decoded is Map ? decoded.cast<String, dynamic>() : null;
     } catch (_) {
       currentUser = null;
     }
@@ -99,8 +122,15 @@ class ApiClient {
   Future<void> clearSession() async {
     token = null;
     currentUser = null;
-    await _secureStorage.delete(key: _sessionTokenKey);
-    await _secureStorage.delete(key: _sessionUserKey);
+    try {
+      await _secureStorage.delete(key: _sessionTokenKey);
+      await _secureStorage.delete(key: _sessionUserKey);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_sessionTokenKey);
+      await prefs.remove(_sessionUserKey);
+    } catch (_) {}
   }
 
   Map<String, String> _headers({bool auth = false}) {
@@ -565,11 +595,9 @@ class ApiClient {
     Map<String, dynamic> listing,
     Map<String, dynamic> request,
   ) {
-    final destinationMatch = (listing['destination'] ?? '')
-            .toString()
-            .toLowerCase()
-            .trim() ==
-        (request['destination'] ?? '').toString().toLowerCase().trim();
+    final destinationMatch =
+        (listing['destination'] ?? '').toString().toLowerCase().trim() ==
+            (request['destination'] ?? '').toString().toLowerCase().trim();
     final originMatch =
         (listing['origin'] ?? '').toString().toLowerCase().trim() ==
             (request['origin'] ?? '').toString().toLowerCase().trim();
@@ -738,12 +766,14 @@ class ApiClient {
           as List<dynamic>;
   Future<List<dynamic>> recommendedListingsForRequest(String requestID) async =>
       (await _call('GET', '/v1/recommendations/listings',
-          auth: true, query: {'request_id': requestID}, list: true))
-          as List<dynamic>;
+          auth: true,
+          query: {'request_id': requestID},
+          list: true)) as List<dynamic>;
   Future<List<dynamic>> recommendedRequestsForListing(String listingID) async =>
       (await _call('GET', '/v1/recommendations/requests',
-          auth: true, query: {'listing_id': listingID}, list: true))
-          as List<dynamic>;
+          auth: true,
+          query: {'listing_id': listingID},
+          list: true)) as List<dynamic>;
   Future<List<dynamic>> myEscrows() async =>
       (await _call('GET', '/v1/me/escrows', auth: true, list: true))
           as List<dynamic>;
