@@ -26,6 +26,7 @@ import (
 
 	"p2p-delivery/backend/internal/auth"
 	"p2p-delivery/backend/internal/domain"
+	"p2p-delivery/backend/internal/fraud"
 	"p2p-delivery/backend/internal/payments"
 	"p2p-delivery/backend/internal/recommendations"
 	"p2p-delivery/backend/internal/store"
@@ -928,6 +929,12 @@ func (s *Server) createDeliveryRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	eval := fraud.EvaluateDeliveryRequestRisk(in, existing)
+	if eval.Status == "rejected_high_risk" {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("request flagged as high risk: %s", strings.Join(eval.Reasons, "; ")))
+		return
+	}
+	in.Status = eval.Status
 	out, err := s.repo.CreateDeliveryRequest(in)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -1286,6 +1293,23 @@ func (s *Server) createPackageVerification(w http.ResponseWriter, r *http.Reques
 	if in.RequestID == "" || in.DeclaredContents == "" || in.ReceiptRef == "" {
 		writeErr(w, http.StatusBadRequest, "request_id, declared_contents and receipt_ref are required")
 		return
+	}
+	if in.RiskScore <= 0 {
+		in.RiskScore = 10
+		if strings.Contains(strings.ToLower(in.DeclaredContents), "cash") ||
+			strings.Contains(strings.ToLower(in.DeclaredContents), "jewelry") ||
+			strings.Contains(strings.ToLower(in.DeclaredContents), "weapon") ||
+			strings.Contains(strings.ToLower(in.DeclaredContents), "drug") {
+			in.RiskScore = 80
+		}
+	}
+	if in.RiskScore >= 70 {
+		in.Status = "rejected_high_risk"
+		if in.ReviewNotes == "" {
+			in.ReviewNotes = "Auto-flagged by fraud heuristic"
+		}
+	} else {
+		in.Status = "pending_review"
 	}
 	out, err := s.repo.CreatePackageVerification(in)
 	if err != nil {

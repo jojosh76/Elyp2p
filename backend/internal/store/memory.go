@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"p2p-delivery/backend/internal/domain"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type MemoryStore struct {
@@ -381,7 +382,9 @@ func (s *MemoryStore) CreateDeliveryRequest(in domain.DeliveryRequest) (domain.D
 	defer s.mu.Unlock()
 
 	in.ID = s.nextID("req")
-	in.Status = "open"
+	if in.Status == "" {
+		in.Status = "open"
+	}
 	in.CreatedAt = time.Now().UTC()
 	s.requests[in.ID] = in
 	return in, nil

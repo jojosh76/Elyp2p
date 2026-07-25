@@ -419,12 +419,16 @@ func scanTravelerListings(rows *sql.Rows, err error) ([]domain.TravelerListing, 
 }
 
 func (s *PostgresStore) CreateDeliveryRequest(in domain.DeliveryRequest) (domain.DeliveryRequest, error) {
+	status := in.Status
+	if status == "" {
+		status = "open"
+	}
 	const q = `
 		INSERT INTO delivery_requests (client_id, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, status)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'open')
+		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING id::text, status, created_at
 	`
-	err := s.db.QueryRow(q, in.ClientID, in.Origin, in.DestinationType, in.Destination, in.RecipientName, in.RecipientPhone, in.RecipientPhotoURL, in.DropoffAddress, in.DropoffInstructions, in.WeightKg, in.PackageDescription, in.DeclaredValue).
+	err := s.db.QueryRow(q, in.ClientID, in.Origin, in.DestinationType, in.Destination, in.RecipientName, in.RecipientPhone, in.RecipientPhotoURL, in.DropoffAddress, in.DropoffInstructions, in.WeightKg, in.PackageDescription, in.DeclaredValue, status).
 		Scan(&in.ID, &in.Status, &in.CreatedAt)
 	if err != nil {
 		return domain.DeliveryRequest{}, err
