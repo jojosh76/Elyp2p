@@ -36,7 +36,31 @@ class FancyCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: radius,
-        child: Padding(padding: padding, child: child),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            textTheme: Theme.of(context).textTheme.apply(
+                  bodyColor: Colors.black87,
+                  displayColor: Colors.black87,
+                ),
+            inputDecorationTheme: Theme.of(context)
+                .inputDecorationTheme
+                .copyWith(
+                  labelStyle: const TextStyle(color: Colors.black87),
+                  hintStyle: TextStyle(color: Colors.black.withOpacity(0.6)),
+                  floatingLabelStyle: const TextStyle(color: Colors.black87),
+                  prefixIconColor: Colors.black.withOpacity(0.7),
+                  iconColor: Colors.black.withOpacity(0.7),
+                ),
+          ),
+          child: Padding(
+              padding: padding,
+              child: DefaultTextStyle(
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium!
+                      .copyWith(color: Colors.black87),
+                  child: child)),
+        ),
       ),
     );
   }
