@@ -22,6 +22,13 @@ type PostgresStore struct {
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
+	if !strings.Contains(dsn, "default_query_exec_mode=") {
+		if strings.Contains(dsn, "?") {
+			dsn += "&default_query_exec_mode=simple_protocol"
+		} else {
+			dsn += "?default_query_exec_mode=simple_protocol"
+		}
+	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
