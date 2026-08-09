@@ -46,10 +46,11 @@ class FancyCard extends StatelessWidget {
                 .inputDecorationTheme
                 .copyWith(
                   labelStyle: const TextStyle(color: Colors.black87),
-                  hintStyle: TextStyle(color: Colors.black.withOpacity(0.6)),
+                  hintStyle:
+                      TextStyle(color: Colors.black.withValues(alpha: 0.6)),
                   floatingLabelStyle: const TextStyle(color: Colors.black87),
-                  prefixIconColor: Colors.black.withOpacity(0.7),
-                  iconColor: Colors.black.withOpacity(0.7),
+                  prefixIconColor: Colors.black.withValues(alpha: 0.7),
+                  iconColor: Colors.black.withValues(alpha: 0.7),
                 ),
           ),
           child: Padding(
