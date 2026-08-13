@@ -211,7 +211,7 @@ func TestEscrowLifecycleActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create match: %v", err)
 	}
-	escrow, err := repo.CreateEscrow(match.ID, "USD", 100, 0.10)
+	escrow, err := repo.CreateEscrow(match.ID, "USD", 100, 0.10, false, 0)
 	if err != nil {
 		t.Fatalf("create escrow: %v", err)
 	}

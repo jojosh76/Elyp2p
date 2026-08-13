@@ -32,6 +32,8 @@ type MemoryStore struct {
 	trackingEvents       map[string][]domain.TrackingEvent
 	notifications        map[string]domain.Notification
 	paymentEvents        map[string]domain.PaymentEvent
+	insuranceClaims      map[string]domain.InsuranceClaim
+	userReviews          map[string]domain.UserReview
 }
 
 type memoryOTPChallenge struct {
@@ -61,6 +63,8 @@ func NewMemoryStore() *MemoryStore {
 		trackingEvents:       make(map[string][]domain.TrackingEvent),
 		notifications:        make(map[string]domain.Notification),
 		paymentEvents:        make(map[string]domain.PaymentEvent),
+		insuranceClaims:      make(map[string]domain.InsuranceClaim),
+		userReviews:          make(map[string]domain.UserReview),
 	}
 	now := time.Now().UTC()
 	s.oauthConfigs["google"] = domain.OAuthProviderConfig{
@@ -74,6 +78,77 @@ func NewMemoryStore() *MemoryStore {
 		UpdatedAt: now,
 	}
 	return s
+}
+
+func (s *MemoryStore) CreateInsuranceClaim(in domain.InsuranceClaim) (domain.InsuranceClaim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.escrows[in.EscrowID]
+	if !ok || !e.InsuranceEnabled {
+		return domain.InsuranceClaim{}, errors.New("insurance coverage is not enabled for this escrow")
+	}
+	if in.RequestedAmount <= 0 || in.RequestedAmount > e.CoverageLimit {
+		return domain.InsuranceClaim{}, errors.New("requested amount must be within the coverage limit")
+	}
+	for _, c := range s.insuranceClaims {
+		if c.EscrowID == in.EscrowID && c.Status == "pending_review" {
+			return domain.InsuranceClaim{}, errors.New("a claim is already under review for this escrow")
+		}
+	}
+	in.ID = s.nextID("claim")
+	in.Status = "pending_review"
+	in.CreatedAt = time.Now().UTC()
+	s.insuranceClaims[in.ID] = in
+	return in, nil
+}
+func (s *MemoryStore) ListInsuranceClaimsByUser(userID string) ([]domain.InsuranceClaim, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []domain.InsuranceClaim{}
+	for _, c := range s.insuranceClaims {
+		if c.ClaimantID == userID {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+func (s *MemoryStore) ReviewInsuranceClaim(id, status, notes string) (domain.InsuranceClaim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.insuranceClaims[id]
+	if !ok {
+		return c, errors.New("insurance claim not found")
+	}
+	c.Status = status
+	c.ReviewNotes = notes
+	s.insuranceClaims[id] = c
+	return c, nil
+}
+func (s *MemoryStore) CreateUserReview(in domain.UserReview) (domain.UserReview, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.userReviews {
+		if r.MatchID == in.MatchID && r.AuthorID == in.AuthorID {
+			return domain.UserReview{}, errors.New("you have already reviewed this delivery")
+		}
+	}
+	in.ID = s.nextID("review")
+	in.CreatedAt = time.Now().UTC()
+	s.userReviews[in.ID] = in
+	return in, nil
+}
+func (s *MemoryStore) ListReviewsForUser(userID string) ([]domain.UserReview, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []domain.UserReview{}
+	for _, r := range s.userReviews {
+		if r.TargetID == userID {
+			out = append(out, r)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
 }
 
 func (s *MemoryStore) nextID(prefix string) string {
@@ -506,7 +581,7 @@ func (s *MemoryStore) GetMatchByID(id string) (domain.Match, error) {
 	return out, nil
 }
 
-func (s *MemoryStore) CreateEscrow(matchID, currency string, amount, commissionRate float64) (domain.Escrow, error) {
+func (s *MemoryStore) CreateEscrow(matchID, currency string, amount, commissionRate float64, insuranceEnabled bool, coverageLimit float64) (domain.Escrow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -520,6 +595,9 @@ func (s *MemoryStore) CreateEscrow(matchID, currency string, amount, commissionR
 	}
 	commission := amount * commissionRate
 	travelerAmount := amount - commission
+	if insuranceEnabled && coverageLimit <= 0 {
+		return domain.Escrow{}, errors.New("a positive coverage limit is required")
+	}
 
 	out := domain.Escrow{
 		ID:               s.nextID("esc"),
@@ -529,7 +607,15 @@ func (s *MemoryStore) CreateEscrow(matchID, currency string, amount, commissionR
 		CommissionAmount: commission,
 		TravelerAmount:   travelerAmount,
 		Status:           "pending_funding",
-		CreatedAt:        time.Now().UTC(),
+		InsuranceEnabled: insuranceEnabled,
+		CoverageLimit:    coverageLimit,
+		InsurancePremium: func() float64 {
+			if insuranceEnabled {
+				return coverageLimit * 0.02
+			}
+			return 0
+		}(),
+		CreatedAt: time.Now().UTC(),
 	}
 	s.escrows[out.ID] = out
 	return out, nil
@@ -771,6 +857,8 @@ func (s *MemoryStore) CreatePackageVerification(in domain.PackageVerification) (
 	in.CreatedAt = time.Now().UTC()
 	if in.RiskScore >= 70 {
 		in.Status = "rejected_high_risk"
+	} else if in.Status == "approved" {
+		// keep approved when set by handler
 	} else {
 		in.Status = "pending_review"
 	}

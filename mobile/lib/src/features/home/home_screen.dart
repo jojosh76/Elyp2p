@@ -5,12 +5,14 @@ import '../admin/admin_dashboard_screen.dart';
 import '../kyc/kyc_screen.dart';
 import '../../widgets/responsive_page.dart';
 import '../../widgets/animated_entry.dart';
+import '../insurance/insurance_screen.dart';
 import '../listings/listings_screen.dart';
 import '../my_work/my_work_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../package_verification/package_verification_screen.dart';
 import '../profile/profile_screen.dart';
 import '../requests/requests_screen.dart';
+import '../reviews/reviews_screen.dart';
 import '../tracking/tracking_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -92,6 +94,16 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.work,
           page: MyWorkScreen(api: widget.api),
           primary: true),
+      _HomeSection(
+          label: 'Insurance',
+          icon: Icons.shield,
+          page: InsuranceScreen(api: widget.api),
+          primary: false),
+      _HomeSection(
+          label: 'Reviews',
+          icon: Icons.star_rate_rounded,
+          page: ReviewsScreen(api: widget.api),
+          primary: false),
       if (isTraveler)
         _HomeSection(
             label: 'Listings',

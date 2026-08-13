@@ -33,7 +33,7 @@ type Repository interface {
 	CreateMatch(in domain.Match) (domain.Match, error)
 	ListMatchesByUser(userID string) ([]domain.Match, error)
 	GetMatchByID(id string) (domain.Match, error)
-	CreateEscrow(matchID, currency string, amount, commissionRate float64) (domain.Escrow, error)
+	CreateEscrow(matchID, currency string, amount, commissionRate float64, insuranceEnabled bool, coverageLimit float64) (domain.Escrow, error)
 	DeleteEscrowByUser(id, userID string) error
 	FundEscrow(id string) (domain.Escrow, error)
 	ReleaseEscrow(id string) (domain.Escrow, error)
@@ -44,6 +44,11 @@ type Repository interface {
 	ListEscrowsByUser(userID string) ([]domain.Escrow, error)
 	GetEscrowByID(id string) (domain.Escrow, error)
 	GetCommissionSummary() (domain.CommissionSummary, error)
+	CreateInsuranceClaim(in domain.InsuranceClaim) (domain.InsuranceClaim, error)
+	ListInsuranceClaimsByUser(userID string) ([]domain.InsuranceClaim, error)
+	ReviewInsuranceClaim(id, status, notes string) (domain.InsuranceClaim, error)
+	CreateUserReview(in domain.UserReview) (domain.UserReview, error)
+	ListReviewsForUser(userID string) ([]domain.UserReview, error)
 
 	CreateKYCVerification(in domain.KYCVerification) (domain.KYCVerification, error)
 	ListKYCVerifications(status, userID string) ([]domain.KYCVerification, error)

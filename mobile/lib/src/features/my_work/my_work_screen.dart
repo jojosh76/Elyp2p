@@ -21,11 +21,19 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
   List<dynamic> _openRequests = [];
   List<dynamic> _myMatches = [];
   List<dynamic> _myEscrows = [];
+  List<dynamic> _myClaims = [];
+  List<dynamic> _myReviews = [];
   bool _canReleaseSelectedEscrow = false;
   String _releaseHint = 'Select an escrow to check delivery status.';
 
   final _agreedPrice = TextEditingController(text: '25');
   final _escrowAmount = TextEditingController(text: '25');
+  final _coverageLimit = TextEditingController(text: '50');
+  final _claimReason = TextEditingController();
+  final _claimAmount = TextEditingController(text: '50');
+  final _reviewComment = TextEditingController();
+  bool _insuranceEnabled = false;
+  double _reviewRating = 5;
   String _selectedListingId = '';
   String _selectedRequestId = '';
   String _selectedMatchId = '';
@@ -41,6 +49,10 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
   void dispose() {
     _agreedPrice.dispose();
     _escrowAmount.dispose();
+    _coverageLimit.dispose();
+    _claimReason.dispose();
+    _claimAmount.dispose();
+    _reviewComment.dispose();
     super.dispose();
   }
 
@@ -56,6 +68,8 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
       _openRequests = await widget.api.listDeliveryRequests();
       _myMatches = await widget.api.myMatches();
       _myEscrows = await widget.api.myEscrows();
+      _myClaims = await widget.api.myInsuranceClaims();
+      _myReviews = await widget.api.myReviews();
       _selectedListingId =
           _pickFirstValid(_selectedListingId, _listingOptions());
       _selectedRequestId =
@@ -68,6 +82,19 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _claimStatusLabel(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    return status.isEmpty ? 'Pending' : status.replaceAll('_', ' ');
+  }
+
+  String _reviewSummary(Map<String, dynamic> item) {
+    final rating = (item['rating'] ?? 0).toString();
+    final comment = (item['comment'] ?? '').toString();
+    return comment.isEmpty
+        ? 'Rating: $rating/5'
+        : 'Rating: $rating/5 — $comment';
   }
 
   Future<void> _refreshReleaseEligibility() async {
@@ -253,6 +280,8 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
       await widget.api.createEscrow(
         matchID: _selectedMatchId,
         amount: double.tryParse(_escrowAmount.text) ?? 0,
+        insuranceEnabled: _insuranceEnabled,
+        coverageLimit: double.tryParse(_coverageLimit.text) ?? 0,
       );
       await _load();
     } catch (e) {
@@ -260,6 +289,71 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),
         ));
+      }
+    }
+  }
+
+  Future<void> _submitClaim() async {
+    try {
+      if (_selectedEscrowId.isEmpty) {
+        throw Exception('Select a protected escrow');
+      }
+      final reason = _claimReason.text.trim();
+      final amount = double.tryParse(_claimAmount.text) ?? 0;
+      if (reason.isEmpty) {
+        throw Exception('Describe the loss or incident before submitting');
+      }
+      if (amount <= 0) {
+        throw Exception('Requested amount must be greater than zero');
+      }
+      await widget.api.createInsuranceClaim(
+        escrowID: _selectedEscrowId,
+        reason: reason,
+        requestedAmount: amount,
+      );
+      _claimReason.clear();
+      _claimAmount.text = '50';
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Insurance claim submitted for review')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitReview() async {
+    try {
+      if (_selectedMatchId.isEmpty) {
+        throw Exception('Select a completed match');
+      }
+      await widget.api.createReview(
+        matchID: _selectedMatchId,
+        rating: _reviewRating.round(),
+        comment: _reviewComment.text.trim(),
+      );
+      _reviewComment.clear();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thank you for your rating')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
       }
     }
   }
@@ -413,6 +507,21 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                           decoration:
                               const InputDecoration(labelText: 'Agreed Price'),
                         ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Loss coverage'),
+                          subtitle: const Text(
+                              '2% premium of the coverage limit; claims are reviewed by the team.'),
+                          value: _insuranceEnabled,
+                          onChanged: (v) =>
+                              setState(() => _insuranceEnabled = v),
+                        ),
+                        if (_insuranceEnabled)
+                          TextField(
+                              controller: _coverageLimit,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  labelText: 'Coverage limit')),
                         const SizedBox(height: 8),
                         FilledButton(
                             onPressed: _createMatch,
@@ -421,6 +530,61 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                     ),
                   ),
                 ),
+              if (canManagePayments)
+                FancyCard(
+                    child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Loss coverage claim',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 8),
+                              const Text(
+                                  'Select a covered escrow above, then describe the loss or damage.'),
+                              TextField(
+                                  controller: _claimReason,
+                                  decoration: const InputDecoration(
+                                      labelText: 'What happened?')),
+                              TextField(
+                                  controller: _claimAmount,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Requested amount')),
+                              const SizedBox(height: 8),
+                              FilledButton.tonal(
+                                  onPressed: _submitClaim,
+                                  child: const Text('Submit claim')),
+                            ]))),
+              FancyCard(
+                  child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Rate your delivery partner',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                            const Text(
+                                'Available once the escrow has been released.'),
+                            Slider(
+                                value: _reviewRating,
+                                min: 1,
+                                max: 5,
+                                divisions: 4,
+                                label: '${_reviewRating.round()} / 5',
+                                onChanged: (v) =>
+                                    setState(() => _reviewRating = v)),
+                            TextField(
+                                controller: _reviewComment,
+                                maxLines: 2,
+                                decoration: const InputDecoration(
+                                    labelText: 'Comment (optional)')),
+                            const SizedBox(height: 8),
+                            FilledButton.tonal(
+                                onPressed: _submitReview,
+                                child: const Text('Publish rating')),
+                          ]))),
               if (canManagePayments)
                 FancyCard(
                   child: Padding(
@@ -534,6 +698,48 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                     ),
                   ),
                 ),
+              const SizedBox(height: 8),
+              const Text('My Insurance Claims',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              if (_myClaims.isEmpty)
+                const Text('No insurance claims yet.')
+              else
+                ..._myClaims.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final item = (entry.value as Map).cast<String, dynamic>();
+                  return AnimatedEntry(
+                    delay: Duration(milliseconds: 80 * i),
+                    child: FancyCard(
+                      child: ListTile(
+                        title: Text('Claim for ${item['escrow_id'] ?? ''}'),
+                        subtitle: Text(
+                          'Status: ${_claimStatusLabel(item)}\n'
+                          'Requested amount: ${item['requested_amount'] ?? 0}\n'
+                          '${item['reason'] ?? ''}',
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+              const Text('My Reviews',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              if (_myReviews.isEmpty)
+                const Text('No reviews published yet.')
+              else
+                ..._myReviews.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final item = (entry.value as Map).cast<String, dynamic>();
+                  return AnimatedEntry(
+                    delay: Duration(milliseconds: 90 * i),
+                    child: FancyCard(
+                      child: ListTile(
+                        title: Text('Match ${item['match_id'] ?? ''}'),
+                        subtitle: Text(_reviewSummary(item)),
+                      ),
+                    ),
+                  );
+                }),
               const SizedBox(height: 8),
               const Text('My Requests',
                   style: TextStyle(fontWeight: FontWeight.bold)),

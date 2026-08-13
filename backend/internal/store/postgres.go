@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -431,12 +432,12 @@ func (s *PostgresStore) CreateDeliveryRequest(in domain.DeliveryRequest) (domain
 		status = "open"
 	}
 	const q = `
-		INSERT INTO delivery_requests (client_id, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, status)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-		RETURNING id::text, status, created_at
+		INSERT INTO delivery_requests (client_id, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, challenge_token, qrcode_data, status)
+		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		RETURNING id::text, challenge_token, qrcode_data, status, created_at
 	`
-	err := s.db.QueryRow(q, in.ClientID, in.Origin, in.DestinationType, in.Destination, in.RecipientName, in.RecipientPhone, in.RecipientPhotoURL, in.DropoffAddress, in.DropoffInstructions, in.WeightKg, in.PackageDescription, in.DeclaredValue, status).
-		Scan(&in.ID, &in.Status, &in.CreatedAt)
+	err := s.db.QueryRow(q, in.ClientID, in.Origin, in.DestinationType, in.Destination, in.RecipientName, in.RecipientPhone, in.RecipientPhotoURL, in.DropoffAddress, in.DropoffInstructions, in.WeightKg, in.PackageDescription, in.DeclaredValue, in.ChallengeToken, in.QRCodeData, status).
+		Scan(&in.ID, &in.ChallengeToken, &in.QRCodeData, &in.Status, &in.CreatedAt)
 	if err != nil {
 		return domain.DeliveryRequest{}, err
 	}
@@ -445,7 +446,7 @@ func (s *PostgresStore) CreateDeliveryRequest(in domain.DeliveryRequest) (domain
 
 func (s *PostgresStore) ListDeliveryRequests(destination string) ([]domain.DeliveryRequest, error) {
 	base := `
-		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, status, created_at
+		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, challenge_token, qrcode_data, status, created_at
 		FROM delivery_requests
 	`
 	args := []any{}
@@ -459,7 +460,7 @@ func (s *PostgresStore) ListDeliveryRequests(destination string) ([]domain.Deliv
 
 func (s *PostgresStore) ListDeliveryRequestsByUser(userID string) ([]domain.DeliveryRequest, error) {
 	return scanDeliveryRequests(s.db.Query(`
-		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, status, created_at
+		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, challenge_token, qrcode_data, status, created_at
 		FROM delivery_requests WHERE client_id = $1::uuid ORDER BY created_at DESC
 	`, userID))
 }
@@ -467,10 +468,10 @@ func (s *PostgresStore) ListDeliveryRequestsByUser(userID string) ([]domain.Deli
 func (s *PostgresStore) GetDeliveryRequestByID(id string) (domain.DeliveryRequest, error) {
 	var out domain.DeliveryRequest
 	err := s.db.QueryRow(`
-		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, status, created_at
+		SELECT id::text, client_id::text, origin, destination_type, destination, recipient_name, recipient_phone, recipient_photo_url, dropoff_address, dropoff_instructions, weight_kg, package_description, declared_value, challenge_token, qrcode_data, status, created_at
 		FROM delivery_requests
 		WHERE id = $1::uuid
-	`, id).Scan(&out.ID, &out.ClientID, &out.Origin, &out.DestinationType, &out.Destination, &out.RecipientName, &out.RecipientPhone, &out.RecipientPhotoURL, &out.DropoffAddress, &out.DropoffInstructions, &out.WeightKg, &out.PackageDescription, &out.DeclaredValue, &out.Status, &out.CreatedAt)
+	`, id).Scan(&out.ID, &out.ClientID, &out.Origin, &out.DestinationType, &out.Destination, &out.RecipientName, &out.RecipientPhone, &out.RecipientPhotoURL, &out.DropoffAddress, &out.DropoffInstructions, &out.WeightKg, &out.PackageDescription, &out.DeclaredValue, &out.ChallengeToken, &out.QRCodeData, &out.Status, &out.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.DeliveryRequest{}, errors.New("request not found")
@@ -488,7 +489,7 @@ func scanDeliveryRequests(rows *sql.Rows, err error) ([]domain.DeliveryRequest, 
 	out := []domain.DeliveryRequest{}
 	for rows.Next() {
 		var it domain.DeliveryRequest
-		if err := rows.Scan(&it.ID, &it.ClientID, &it.Origin, &it.DestinationType, &it.Destination, &it.RecipientName, &it.RecipientPhone, &it.RecipientPhotoURL, &it.DropoffAddress, &it.DropoffInstructions, &it.WeightKg, &it.PackageDescription, &it.DeclaredValue, &it.Status, &it.CreatedAt); err != nil {
+		if err := rows.Scan(&it.ID, &it.ClientID, &it.Origin, &it.DestinationType, &it.Destination, &it.RecipientName, &it.RecipientPhone, &it.RecipientPhotoURL, &it.DropoffAddress, &it.DropoffInstructions, &it.WeightKg, &it.PackageDescription, &it.DeclaredValue, &it.ChallengeToken, &it.QRCodeData, &it.Status, &it.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, it)
@@ -591,7 +592,7 @@ func (s *PostgresStore) GetMatchByID(id string) (domain.Match, error) {
 	return out, nil
 }
 
-func (s *PostgresStore) CreateEscrow(matchID, currency string, amount, commissionRate float64) (domain.Escrow, error) {
+func (s *PostgresStore) CreateEscrow(matchID, currency string, amount, commissionRate float64, insuranceEnabled bool, coverageLimit float64) (domain.Escrow, error) {
 	var exists bool
 	if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM matches WHERE id = $1::uuid)`, matchID).Scan(&exists); err != nil {
 		return domain.Escrow{}, err
@@ -611,13 +612,21 @@ func (s *PostgresStore) CreateEscrow(matchID, currency string, amount, commissio
 		Amount:           amount,
 		CommissionAmount: amount * commissionRate,
 		TravelerAmount:   amount - (amount * commissionRate),
+		InsuranceEnabled: insuranceEnabled,
+		CoverageLimit:    coverageLimit,
+	}
+	if insuranceEnabled && coverageLimit <= 0 {
+		return domain.Escrow{}, errors.New("a positive coverage limit is required")
+	}
+	if insuranceEnabled {
+		out.InsurancePremium = coverageLimit * 0.02
 	}
 	const q = `
-		INSERT INTO escrows (match_id, currency, amount, commission_amount, traveler_amount, status)
-		VALUES ($1::uuid,$2,$3,$4,$5,'pending_funding')
+		INSERT INTO escrows (match_id, currency, amount, commission_amount, traveler_amount, insurance_enabled, coverage_limit, insurance_premium, status)
+		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,'pending_funding')
 		RETURNING id::text, status, created_at
 	`
-	err := s.db.QueryRow(q, out.MatchID, out.Currency, out.Amount, out.CommissionAmount, out.TravelerAmount).
+	err := s.db.QueryRow(q, out.MatchID, out.Currency, out.Amount, out.CommissionAmount, out.TravelerAmount, out.InsuranceEnabled, out.CoverageLimit, out.InsurancePremium).
 		Scan(&out.ID, &out.Status, &out.CreatedAt)
 	if err != nil {
 		return domain.Escrow{}, err
@@ -788,6 +797,69 @@ func (s *PostgresStore) GetCommissionSummary() (domain.CommissionSummary, error)
 	return out, nil
 }
 
+func (s *PostgresStore) CreateInsuranceClaim(in domain.InsuranceClaim) (domain.InsuranceClaim, error) {
+	var limit float64
+	var enabled bool
+	if err := s.db.QueryRow(`SELECT coverage_limit, insurance_enabled FROM escrows WHERE id=$1::uuid`, in.EscrowID).Scan(&limit, &enabled); err != nil {
+		return domain.InsuranceClaim{}, errors.New("escrow not found")
+	}
+	if !enabled {
+		return domain.InsuranceClaim{}, errors.New("insurance coverage is not enabled for this escrow")
+	}
+	if in.RequestedAmount <= 0 || in.RequestedAmount > limit {
+		return domain.InsuranceClaim{}, errors.New("requested amount must be within the coverage limit")
+	}
+	err := s.db.QueryRow(`INSERT INTO insurance_claims(escrow_id,claimant_id,reason,requested_amount) VALUES($1::uuid,$2::uuid,$3,$4) RETURNING id::text,status,review_notes,created_at`, in.EscrowID, in.ClaimantID, in.Reason, in.RequestedAmount).Scan(&in.ID, &in.Status, &in.ReviewNotes, &in.CreatedAt)
+	return in, err
+}
+func (s *PostgresStore) ListInsuranceClaimsByUser(userID string) ([]domain.InsuranceClaim, error) {
+	rows, err := s.db.Query(`SELECT id::text,escrow_id::text,claimant_id::text,reason,requested_amount,status,review_notes,created_at FROM insurance_claims WHERE claimant_id=$1::uuid ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.InsuranceClaim{}
+	for rows.Next() {
+		var c domain.InsuranceClaim
+		if err := rows.Scan(&c.ID, &c.EscrowID, &c.ClaimantID, &c.Reason, &c.RequestedAmount, &c.Status, &c.ReviewNotes, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+func (s *PostgresStore) ReviewInsuranceClaim(id, status, notes string) (domain.InsuranceClaim, error) {
+	var c domain.InsuranceClaim
+	err := s.db.QueryRow(`UPDATE insurance_claims SET status=$2,review_notes=$3 WHERE id=$1::uuid AND status='pending_review' RETURNING id::text,escrow_id::text,claimant_id::text,reason,requested_amount,status,review_notes,created_at`, id, status, notes).Scan(&c.ID, &c.EscrowID, &c.ClaimantID, &c.Reason, &c.RequestedAmount, &c.Status, &c.ReviewNotes, &c.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c, errors.New("insurance claim not found or already reviewed")
+	}
+	return c, err
+}
+func (s *PostgresStore) CreateUserReview(in domain.UserReview) (domain.UserReview, error) {
+	err := s.db.QueryRow(`INSERT INTO user_reviews(match_id,author_id,target_id,rating,comment) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5) RETURNING id::text,created_at`, in.MatchID, in.AuthorID, in.TargetID, in.Rating, in.Comment).Scan(&in.ID, &in.CreatedAt)
+	if err != nil && strings.Contains(err.Error(), "duplicate") {
+		return domain.UserReview{}, errors.New("you have already reviewed this delivery")
+	}
+	return in, err
+}
+func (s *PostgresStore) ListReviewsForUser(userID string) ([]domain.UserReview, error) {
+	rows, err := s.db.Query(`SELECT id::text,match_id::text,author_id::text,target_id::text,rating,comment,created_at FROM user_reviews WHERE target_id=$1::uuid ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.UserReview{}
+	for rows.Next() {
+		var v domain.UserReview
+		if err := rows.Scan(&v.ID, &v.MatchID, &v.AuthorID, &v.TargetID, &v.Rating, &v.Comment, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 func (s *PostgresStore) CreateKYCVerification(in domain.KYCVerification) (domain.KYCVerification, error) {
 	var exists bool
 	if err := s.db.QueryRow(`
@@ -895,11 +967,29 @@ func (s *PostgresStore) CreatePackageVerification(in domain.PackageVerification)
 		status = "rejected_high_risk"
 	}
 	const q = `
-		INSERT INTO package_verifications (request_id, declared_contents, receipt_ref, screening_method, risk_score, status, review_notes)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7)
-		RETURNING id::text, status, created_at
+		INSERT INTO package_verifications (request_id, declared_contents, receipt_ref, screening_method, risk_score, challenge_token, photo_hashes, proof_gps, proof_weight_kg, status, review_notes)
+		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11)
+		RETURNING id::text, challenge_token, photo_hashes, proof_gps, proof_weight_kg, status, created_at
 	`
-	err := s.db.QueryRow(q, in.RequestID, in.DeclaredContents, in.ReceiptRef, in.ScreeningMethod, in.RiskScore, status, in.ReviewNotes).Scan(&in.ID, &in.Status, &in.CreatedAt)
+	// marshal photo_hashes as JSON
+	var photoBytes []byte
+	if len(in.PhotoHashes) > 0 {
+		b, jErr := json.Marshal(in.PhotoHashes)
+		if jErr != nil {
+			return domain.PackageVerification{}, jErr
+		}
+		photoBytes = b
+	} else {
+		photoBytes = []byte("[]")
+	}
+	err := s.db.QueryRow(q, in.RequestID, in.DeclaredContents, in.ReceiptRef, in.ScreeningMethod, in.RiskScore, in.ChallengeToken, string(photoBytes), in.ProofGPS, in.ProofWeightKg, status, in.ReviewNotes).
+		Scan(&in.ID, &in.ChallengeToken, &photoBytes, &in.ProofGPS, &in.ProofWeightKg, &in.Status, &in.CreatedAt)
+	if err == nil {
+		// unmarshal back into struct
+		var hashes []string
+		_ = json.Unmarshal(photoBytes, &hashes)
+		in.PhotoHashes = hashes
+	}
 	if err != nil {
 		return domain.PackageVerification{}, err
 	}
@@ -908,7 +998,7 @@ func (s *PostgresStore) CreatePackageVerification(in domain.PackageVerification)
 
 func (s *PostgresStore) ListPackageVerifications(status, requestID string) ([]domain.PackageVerification, error) {
 	base := `
-		SELECT id::text, request_id::text, declared_contents, receipt_ref, screening_method, risk_score, status, review_notes, created_at
+		SELECT id::text, request_id::text, declared_contents, receipt_ref, screening_method, risk_score, challenge_token, photo_hashes, proof_gps, proof_weight_kg, status, review_notes, created_at
 		FROM package_verifications WHERE 1=1
 	`
 	args := []any{}
@@ -929,9 +1019,23 @@ func (s *PostgresStore) ListPackageVerifications(status, requestID string) ([]do
 	out := []domain.PackageVerification{}
 	for rows.Next() {
 		var p domain.PackageVerification
-		if err := rows.Scan(&p.ID, &p.RequestID, &p.DeclaredContents, &p.ReceiptRef, &p.ScreeningMethod, &p.RiskScore, &p.Status, &p.ReviewNotes, &p.CreatedAt); err != nil {
+		var photoBytes []byte
+		var proofGPS sql.NullString
+		var proofWeight sql.NullFloat64
+		if err := rows.Scan(&p.ID, &p.RequestID, &p.DeclaredContents, &p.ReceiptRef, &p.ScreeningMethod, &p.RiskScore, &p.ChallengeToken, &photoBytes, &proofGPS, &proofWeight, &p.Status, &p.ReviewNotes, &p.CreatedAt); err != nil {
 			return nil, err
 		}
+		if proofGPS.Valid {
+			p.ProofGPS = proofGPS.String
+		}
+		if proofWeight.Valid {
+			p.ProofWeightKg = proofWeight.Float64
+		}
+		var hashes []string
+		if len(photoBytes) > 0 {
+			_ = json.Unmarshal(photoBytes, &hashes)
+		}
+		p.PhotoHashes = hashes
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -944,12 +1048,29 @@ func (s *PostgresStore) ReviewPackageVerification(id, status, notes string) (dom
 		return domain.PackageVerification{}, errors.New("invalid package verification status")
 	}
 	var out domain.PackageVerification
+	var outJSON []byte
+	var outProofGPS sql.NullString
+	var outProofWeight sql.NullFloat64
 	err := s.db.QueryRow(`
 		UPDATE package_verifications
 		SET status = $2, review_notes = $3
 		WHERE id = $1::uuid
-		RETURNING id::text, request_id::text, declared_contents, receipt_ref, screening_method, risk_score, status, review_notes, created_at
-	`, id, status, notes).Scan(&out.ID, &out.RequestID, &out.DeclaredContents, &out.ReceiptRef, &out.ScreeningMethod, &out.RiskScore, &out.Status, &out.ReviewNotes, &out.CreatedAt)
+		RETURNING id::text, request_id::text, declared_contents, receipt_ref, screening_method, risk_score, challenge_token, photo_hashes, proof_gps, proof_weight_kg, status, review_notes, created_at
+	`, id, status, notes).Scan(&out.ID, &out.RequestID, &out.DeclaredContents, &out.ReceiptRef, &out.ScreeningMethod, &out.RiskScore, &out.ChallengeToken, &outJSON, &outProofGPS, &outProofWeight, &out.Status, &out.ReviewNotes, &out.CreatedAt)
+	if err == nil {
+		// unmarshal photo_hashes
+		var hashes []string
+		if len(outJSON) > 0 {
+			_ = json.Unmarshal(outJSON, &hashes)
+		}
+		out.PhotoHashes = hashes
+		if outProofGPS.Valid {
+			out.ProofGPS = outProofGPS.String
+		}
+		if outProofWeight.Valid {
+			out.ProofWeightKg = outProofWeight.Float64
+		}
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.PackageVerification{}, errors.New("package verification not found")

@@ -33,6 +33,8 @@ class ApiClient {
   final List<Map<String, dynamic>> _requests = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> _matches = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> _escrows = <Map<String, dynamic>>[];
+	final List<Map<String, dynamic>> _claims = <Map<String, dynamic>>[];
+	final List<Map<String, dynamic>> _reviews = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> _kyc = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> _pkg = <Map<String, dynamic>>[];
   final Map<String, List<Map<String, dynamic>>> _tracking =
@@ -358,6 +360,8 @@ class ApiClient {
             ((a['score'] as num?)?.toInt() ?? 0));
     }
     if (path == '/v1/me/escrows') return List<dynamic>.from(_escrows);
+	if (path == '/v1/me/insurance/claims') return List<dynamic>.from(_claims);
+	if (path == '/v1/me/reviews') return List<dynamic>.from(_reviews);
     if (path.startsWith('/v1/me/escrows/') && method == 'DELETE') {
       final id = path.split('/').last;
       _escrows.removeWhere((e) => (e['id'] ?? '').toString() == id);
@@ -383,11 +387,16 @@ class ApiClient {
         'amount': amt,
         'currency': body?['currency'] ?? 'USD',
         'status': 'created',
-        'commission_amount': amt * 0.1
+		'commission_amount': amt * 0.1,
+		'insurance_enabled': body?['insurance_enabled'] ?? false,
+		'coverage_limit': body?['coverage_limit'] ?? 0,
+		'insurance_premium': ((body?['insurance_enabled'] ?? false) ? ((body?['coverage_limit'] as num?)?.toDouble() ?? 0) * 0.02 : 0),
       };
       _escrows.insert(0, x);
       return x;
     }
+	if (path == '/v1/insurance/claims') { final x=<String,dynamic>{'id':_next('claim_'),'escrow_id':body?['escrow_id'],'reason':body?['reason'],'requested_amount':body?['requested_amount'],'status':'pending_review','review_notes':''};_claims.insert(0,x);return x; }
+	if (path == '/v1/reviews') { final x=<String,dynamic>{'id':_next('review_'),'match_id':body?['match_id'],'rating':body?['rating'],'comment':body?['comment'] ?? ''};_reviews.insert(0,x);return x; }
     if (path.startsWith('/v1/escrows/') && path.endsWith('/fund')) {
       final id = path.split('/')[3];
       final x = _escrows.firstWhere((e) => e['id'] == id,
@@ -796,12 +805,16 @@ class ApiClient {
   Future<Map<String, dynamic>> createEscrow(
           {required String matchID,
           required double amount,
-          String currency = 'USD'}) async =>
+          String currency = 'USD', bool insuranceEnabled = false, double coverageLimit = 0}) async =>
       (await _call('POST', '/v1/escrows', auth: true, body: {
         'match_id': matchID,
         'amount': amount,
-        'currency': currency
+		'currency': currency, 'insurance_enabled': insuranceEnabled, 'coverage_limit': coverageLimit
       })) as Map<String, dynamic>;
+	Future<Map<String,dynamic>> createInsuranceClaim({required String escrowID,required String reason,required double requestedAmount}) async => (await _call('POST','/v1/insurance/claims',auth:true,body:{'escrow_id':escrowID,'reason':reason,'requested_amount':requestedAmount})) as Map<String,dynamic>;
+	Future<List<dynamic>> myInsuranceClaims() async => (await _call('GET','/v1/me/insurance/claims',auth:true,list:true)) as List<dynamic>;
+	Future<Map<String,dynamic>> createReview({required String matchID,required int rating,String comment=''}) async => (await _call('POST','/v1/reviews',auth:true,body:{'match_id':matchID,'rating':rating,'comment':comment})) as Map<String,dynamic>;
+	Future<List<dynamic>> myReviews() async => (await _call('GET','/v1/me/reviews',auth:true,list:true)) as List<dynamic>;
   Future<Map<String, dynamic>> fundEscrow(String escrowID) async =>
       (await _call('POST', '/v1/escrows/$escrowID/fund', auth: true))
           as Map<String, dynamic>;

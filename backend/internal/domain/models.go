@@ -85,6 +85,8 @@ type DeliveryRequest struct {
 	WeightKg            float64         `json:"weight_kg"`
 	PackageDescription  string          `json:"package_description"`
 	DeclaredValue       float64         `json:"declared_value"`
+	ChallengeToken      string          `json:"challenge_token,omitempty"`
+	QRCodeData          string          `json:"qrcode_data,omitempty"`
 	Status              string          `json:"status"`
 	CreatedAt           time.Time       `json:"created_at"`
 }
@@ -112,7 +114,33 @@ type Escrow struct {
 	PayoutStatus     string     `json:"payout_status,omitempty"`
 	PayoutProvider   string     `json:"payout_provider,omitempty"`
 	PayoutReference  string     `json:"payout_reference,omitempty"`
+	InsuranceEnabled bool       `json:"insurance_enabled"`
+	CoverageLimit    float64    `json:"coverage_limit"`
+	InsurancePremium float64    `json:"insurance_premium"`
 	CreatedAt        time.Time  `json:"created_at"`
+}
+
+// InsuranceClaim is a request for coverage when a protected parcel is lost or damaged.
+type InsuranceClaim struct {
+	ID              string    `json:"id"`
+	EscrowID        string    `json:"escrow_id"`
+	ClaimantID      string    `json:"claimant_id"`
+	Reason          string    `json:"reason"`
+	RequestedAmount float64   `json:"requested_amount"`
+	Status          string    `json:"status"`
+	ReviewNotes     string    `json:"review_notes"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// UserReview is a one-per-party rating submitted after a completed delivery.
+type UserReview struct {
+	ID        string    `json:"id"`
+	MatchID   string    `json:"match_id"`
+	AuthorID  string    `json:"author_id"`
+	TargetID  string    `json:"target_id"`
+	Rating    int       `json:"rating"`
+	Comment   string    `json:"comment"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type KYCVerification struct {
@@ -133,6 +161,10 @@ type PackageVerification struct {
 	ReceiptRef       string    `json:"receipt_ref"`
 	ScreeningMethod  string    `json:"screening_method"`
 	RiskScore        int       `json:"risk_score"`
+	ChallengeToken   string    `json:"challenge_token,omitempty"`
+	PhotoHashes      []string  `json:"photo_hashes,omitempty"`
+	ProofGPS         string    `json:"proof_gps,omitempty"`
+	ProofWeightKg    float64   `json:"proof_weight_kg,omitempty"`
 	Status           string    `json:"status"`
 	ReviewNotes      string    `json:"review_notes"`
 	CreatedAt        time.Time `json:"created_at"`

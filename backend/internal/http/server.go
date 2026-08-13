@@ -190,6 +190,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /v1/me/requests", s.authRequired(s.myRequests, roleAny...))
 	s.mux.Handle("GET /v1/me/matches", s.authRequired(s.myMatches, roleAny...))
 	s.mux.Handle("GET /v1/me/escrows", s.authRequired(s.myEscrows, roleAny...))
+	s.mux.Handle("GET /v1/me/insurance/claims", s.authRequired(s.myInsuranceClaims, roleAny...))
+	s.mux.Handle("GET /v1/me/reviews", s.authRequired(s.myReviews, roleAny...))
 	s.mux.Handle("GET /v1/me/kyc/verifications", s.authRequired(s.myKYCVerifications, roleAny...))
 	s.mux.Handle("GET /v1/me/packages/verifications", s.authRequired(s.myPackageVerifications, roleAny...))
 	s.mux.Handle("GET /v1/me/notifications", s.authRequired(s.myNotifications, roleAny...))
@@ -206,14 +208,17 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /v1/matches", s.authRequired(s.createMatch, roleAny...))
 	s.mux.Handle("POST /v1/escrows", s.authRequired(s.createEscrow, roleClientOrAdmin...))
 	s.mux.Handle("POST /v1/escrows/", s.authRequired(s.escrowAction, roleClientOrAdmin...))
+	s.mux.Handle("POST /v1/insurance/claims", s.authRequired(s.createInsuranceClaim, roleAny...))
+	s.mux.Handle("POST /v1/reviews", s.authRequired(s.createReview, roleAny...))
 	s.mux.Handle("DELETE /v1/me/escrows/", s.authRequired(s.deleteEscrow, roleAny...))
 	s.mux.Handle("POST /v1/kyc/verifications", s.authRequired(s.createKYCVerification, roleAny...))
-	s.mux.Handle("POST /v1/packages/verifications", s.authRequired(s.createPackageVerification, roleClientOrAdmin...))
+	s.mux.Handle("POST /v1/packages/verifications", s.authRequired(s.createPackageVerification, roleAny...))
 	s.mux.Handle("POST /v1/tracking/events", s.authRequired(s.addTrackingEvent, roleTravelerOrAdmin...))
 	s.mux.Handle("POST /v1/payments/connect/onboard", s.authRequired(s.createPayoutOnboarding, roleTravelerOrAdmin...))
 
 	s.mux.Handle("GET /v1/admin/users", s.authRequired(s.adminUsers, roleAdminOnly...))
 	s.mux.Handle("GET /v1/admin/escrows", s.authRequired(s.adminEscrows, roleAdminOnly...))
+	s.mux.Handle("POST /v1/admin/insurance/claims/", s.authRequired(s.adminInsuranceClaimReview, roleAdminOnly...))
 	s.mux.Handle("GET /v1/admin/commissions/summary", s.authRequired(s.adminCommissionSummary, roleAdminOnly...))
 	s.mux.Handle("GET /v1/admin/kyc/verifications", s.authRequired(s.adminKYCList, roleAdminOnly...))
 	s.mux.Handle("POST /v1/admin/kyc/verifications/", s.authRequired(s.adminKYCReview, roleAdminOnly...))
@@ -904,6 +909,13 @@ func (s *Server) createDeliveryRequest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// generate a short challenge token and QR payload for package verification
+	if strings.TrimSpace(in.ChallengeToken) == "" {
+		in.ChallengeToken = generateShortToken(8)
+	}
+	if strings.TrimSpace(in.QRCodeData) == "" {
+		in.QRCodeData = fmt.Sprintf("p2p:req:%s:tok:%s", in.ClientID, in.ChallengeToken)
+	}
 	// Enforce "unique per client" for open requests with identical details.
 	// This prevents accidental duplicate submissions from the same client.
 	existing, err := s.repo.ListDeliveryRequestsByUser(in.ClientID)
@@ -942,6 +954,22 @@ func (s *Server) createDeliveryRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	out = s.enrichDeliveryRequest(out)
 	writeJSON(w, http.StatusCreated, out)
+}
+
+func generateShortToken(n int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, n)
+	if _, err := cryptorand.Read(b); err != nil {
+		// fallback
+		for i := range b {
+			b[i] = letters[i%len(letters)]
+		}
+		return string(b)
+	}
+	for i := range b {
+		b[i] = letters[int(b[i])%len(letters)]
+	}
+	return string(b)
 }
 
 func (s *Server) listDeliveryRequests(w http.ResponseWriter, r *http.Request) {
@@ -1084,9 +1112,11 @@ func (s *Server) myMatches(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createEscrow(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		MatchID  string  `json:"match_id"`
-		Amount   float64 `json:"amount"`
-		Currency string  `json:"currency"`
+		MatchID          string  `json:"match_id"`
+		Amount           float64 `json:"amount"`
+		Currency         string  `json:"currency"`
+		InsuranceEnabled bool    `json:"insurance_enabled"`
+		CoverageLimit    float64 `json:"coverage_limit"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid JSON")
@@ -1099,7 +1129,7 @@ func (s *Server) createEscrow(w http.ResponseWriter, r *http.Request) {
 	if in.Currency == "" {
 		in.Currency = "USD"
 	}
-	out, err := s.repo.CreateEscrow(in.MatchID, strings.ToUpper(in.Currency), in.Amount, s.commissionRate)
+	out, err := s.repo.CreateEscrow(in.MatchID, strings.ToUpper(in.Currency), in.Amount, s.commissionRate, in.InsuranceEnabled, in.CoverageLimit)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -1151,6 +1181,16 @@ func (s *Server) escrowAction(w http.ResponseWriter, r *http.Request) {
 		if gErr != nil {
 			err = gErr
 			break
+		}
+		// ensure package verification approved for the linked request
+		matchForReq, _ := s.repo.GetMatchByID(existing.MatchID)
+		if matchForReq.ID != "" {
+			// check package verification for the request
+			verifs, vErr := s.repo.ListPackageVerifications("approved", matchForReq.RequestID)
+			if vErr != nil || len(verifs) == 0 {
+				writeErr(w, http.StatusBadRequest, "package verification must be approved before release")
+				return
+			}
 		}
 		match, mErr := s.repo.GetMatchByID(existing.MatchID)
 		if mErr != nil {
@@ -1256,6 +1296,149 @@ func (s *Server) myEscrows(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (s *Server) createInsuranceClaim(w http.ResponseWriter, r *http.Request) {
+	var in domain.InsuranceClaim
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if strings.TrimSpace(in.EscrowID) == "" || strings.TrimSpace(in.Reason) == "" {
+		writeErr(w, http.StatusBadRequest, "escrow_id and reason are required")
+		return
+	}
+	if !s.userCanAccessEscrow(in.EscrowID, userIDFromContext(r)) {
+		writeErr(w, http.StatusForbidden, "escrow does not belong to current user")
+		return
+	}
+	in.ClaimantID = userIDFromContext(r)
+	out, err := s.repo.CreateInsuranceClaim(in)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) myInsuranceClaims(w http.ResponseWriter, r *http.Request) {
+	out, err := s.repo.ListInsuranceClaimsByUser(userIDFromContext(r))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) createReview(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		MatchID string `json:"match_id"`
+		Rating  int    `json:"rating"`
+		Comment string `json:"comment"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if in.MatchID == "" || in.Rating < 1 || in.Rating > 5 {
+		writeErr(w, http.StatusBadRequest, "match_id and a rating from 1 to 5 are required")
+		return
+	}
+	match, err := s.repo.GetMatchByID(in.MatchID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	userID := userIDFromContext(r)
+	target, ok := s.counterpartyForMatch(match, userID)
+	if !ok {
+		writeErr(w, http.StatusForbidden, "you are not part of this delivery")
+		return
+	}
+	escrows, err := s.repo.ListEscrowsByUser(userID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	completed := false
+	for _, e := range escrows {
+		if e.MatchID == match.ID && e.Status == "released" {
+			completed = true
+			break
+		}
+	}
+	if !completed {
+		writeErr(w, http.StatusBadRequest, "reviews are available after the escrow is released")
+		return
+	}
+	out, err := s.repo.CreateUserReview(domain.UserReview{MatchID: match.ID, AuthorID: userID, TargetID: target, Rating: in.Rating, Comment: strings.TrimSpace(in.Comment)})
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) myReviews(w http.ResponseWriter, r *http.Request) {
+	out, err := s.repo.ListReviewsForUser(userIDFromContext(r))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) userCanAccessEscrow(escrowID, userID string) bool {
+	es, err := s.repo.ListEscrowsByUser(userID)
+	if err != nil {
+		return false
+	}
+	for _, e := range es {
+		if e.ID == escrowID {
+			return true
+		}
+	}
+	return false
+}
+func (s *Server) counterpartyForMatch(m domain.Match, userID string) (string, bool) {
+	req, re := s.repo.GetDeliveryRequestByID(m.RequestID)
+	lst, le := s.repo.GetTravelerListingByID(m.ListingID)
+	if re != nil || le != nil {
+		return "", false
+	}
+	if req.ClientID == userID {
+		return lst.TravelerID, true
+	}
+	if lst.TravelerID == userID {
+		return req.ClientID, true
+	}
+	return "", false
+}
+
+func (s *Server) adminInsuranceClaimReview(w http.ResponseWriter, r *http.Request) {
+	id, action, ok := parseActionPath(r.URL.Path, "/v1/admin/insurance/claims/")
+	if !ok || action != "review" {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	var in struct {
+		Status string `json:"status"`
+		Notes  string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if in.Status != "approved" && in.Status != "rejected" {
+		writeErr(w, http.StatusBadRequest, "status must be approved or rejected")
+		return
+	}
+	out, err := s.repo.ReviewInsuranceClaim(id, in.Status, in.Notes)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) createKYCVerification(w http.ResponseWriter, r *http.Request) {
 	var in domain.KYCVerification
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -1303,11 +1486,25 @@ func (s *Server) createPackageVerification(w http.ResponseWriter, r *http.Reques
 			in.RiskScore = 80
 		}
 	}
+	// Handle proof metadata: if client included photos (base64) hashes or challenge token,
+	// compute approval heuristics: auto-approve when challenge token matches request token and at least one photo provided.
+	// Note: photos are expected as raw base64 strings in in.PhotoHashes field for lightweight storage, or client may send hashes.
+	approved := false
+	if strings.TrimSpace(in.ChallengeToken) != "" {
+		req, rErr := s.repo.GetDeliveryRequestByID(in.RequestID)
+		if rErr == nil && strings.TrimSpace(req.ChallengeToken) != "" && strings.EqualFold(strings.TrimSpace(req.ChallengeToken), strings.TrimSpace(in.ChallengeToken)) {
+			if len(in.PhotoHashes) > 0 {
+				approved = true
+			}
+		}
+	}
 	if in.RiskScore >= 70 {
 		in.Status = "rejected_high_risk"
 		if in.ReviewNotes == "" {
 			in.ReviewNotes = "Auto-flagged by fraud heuristic"
 		}
+	} else if approved {
+		in.Status = "approved"
 	} else {
 		in.Status = "pending_review"
 	}

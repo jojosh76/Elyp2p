@@ -9,6 +9,14 @@ func BuildProvider(name string) (Provider, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "", "noop":
 		return NewNoopProvider(), nil
+	case "momo", "mobilemoney", "mobile_money":
+		momoKey := strings.TrimSpace(os.Getenv("MOMO_API_KEY"))
+		momoSecret := strings.TrimSpace(os.Getenv("MOMO_API_SECRET"))
+		return NewMomoProvider(momoKey, momoSecret)
+	case "orange", "orangemoney", "om", "orange_money":
+		omKey := strings.TrimSpace(os.Getenv("OM_API_KEY"))
+		omSecret := strings.TrimSpace(os.Getenv("OM_API_SECRET"))
+		return NewOrangeMoneyProvider(omKey, omSecret)
 	case "stripe", "stripe_connect", "stripe_connect_stub":
 		secret := strings.TrimSpace(os.Getenv("STRIPE_SECRET_KEY"))
 		webhookSecret := strings.TrimSpace(os.Getenv("STRIPE_WEBHOOK_SECRET"))
